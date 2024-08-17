@@ -1,0 +1,126 @@
+---
+title: "Untitled"
+format: html
+---
+
+```{r}
+library(tidyverse)
+tidyverse_conflicts()
+```
+
+# 1. importing data 
+
+## 1.1 ชุดข้อมูล grid ของประเทศไทยและจังหวัด
+
+```{r}
+## thailand grid
+thai_grid <- read_csv("02_latlon_dataset/3_lonlat_rcm_thai_select.csv")
+thai_grid <- thai_grid |> 
+    mutate(grid_id = paste0("grid_",grid_id))
+
+## province grid
+province_grid <- read_csv("02_latlon_dataset/2_thai_province_2730Grid_weight_rcm.csv")
+province_grid <- province_grid  |> select(PROV_NAM_T, TMD_Region, grid_id) |> 
+    mutate(grid_id = paste0("grid_",grid_id))
+
+thai_province_grid <- inner_join(thai_grid, province_grid, by = "grid_id")
+thai_province_grid %>% head()
+```
+
+
+## 1.2 สภาพภูมิอากาศด้านปริมาณน้ำฝนสุดขั้ว
+
+จำแนกเป็น 3 องค์ประกอบ ได้แก่ intensity, duration, frequency
+
+### intensity: 
+
+Rx1day - ปริมาณน้ำฝน (mm) ในวันที่มีฝนตกมากที่สุด
+
+Rx5day - ปริมาณน้ำฝน (mm) ในวันที่มีฝนตกมากที่สุด 5 วันติดต่อกัน
+
+R95p - ผลรวมของปริมาณน้ำฝนในแต่ละปี โดยนับเฉพาะวันที่ปริมาณน้ำฝนสูงกว่าเปอร์เซ็นไทล์ที่ 95 (mm) ตัวชี้วัดนี้บ่งชี้ปริมาณน้ำฝนรวมในปีนั้นที่ตกมากอย่างผิดปกติ
+
+R99p - ผลรวมของปริมาณน้ำฝนในแต่ละปี โดยนับเฉพาะวันที่ปริมาณน้ำฝนสูงกว่าเปอร์เซ็นไทล์ที่ 99 (mm) ตัวชี้วัดนี้บ่งชี้ปริมาณน้ำฝนรวมในปีนั้นที่ตกมากอย่างผิดปกติ
+
+ 
+```{r}
+#### import intensity data model rcp45
+rx1_rcp45 <- read_csv("01_Climate_Indices/thai_ensemble_rcp45_RX1day.csv", col_name = F)
+rx5_rcp45 <- read_csv("01_Climate_Indices/thai_ensemble_rcp45_RX5day.csv", col_name = F)
+r95_rcp45 <- read_csv("01_Climate_Indices/thai_ensemble_rcp45_R95p.csv", col_name = F)
+r99_rcp45 <- read_csv("01_Climate_Indices/thai_ensemble_rcp45_R99p.csv", col_name = F)
+#### --- ตั้งชื่อ grid
+names(rx1_rcp45) <- c("year", paste0("grid_",1:2730))
+names(rx5_rcp45) <- c("year", paste0("grid_",1:2730))
+names(r95_rcp45) <- c("year", paste0("grid_",1:2730))
+names(r99_rcp45) <- c("year", paste0("grid_",1:2730))
+```
+
+
+จัดการข้อมูลให้ระบุ grid ของแต่ละปรากฎการณ์ได้ และรวมข้อมูลทั้งหมดให้เป็น intensity dataset
+
+```{r}
+intensity_data <- thai_province_grid |> 
+    right_join(rx1_rcp45 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "rx1_rcp45"), by = "grid_id") |> 
+    inner_join(rx5_rcp45 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "rx5_rcp45"), by = join_by("year","grid_id")) |> 
+    inner_join(r95_rcp45 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "r95_rcp45"), by = join_by("year","grid_id")) |> 
+    inner_join(r99_rcp45 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "r99_rcp45"), by = join_by("year","grid_id")) 
+```
+
+
+```{r}
+### filter ให้เหลือสองช่วงเวลา ได้แก่ ช่วง 1970-2005 เป็นช่วงปีฐาน และช่วงปีพิจารณาได้แก่  2017-2021 
+library(viridis)
+max_min <- function(x)
+{
+    y<-(x-min(x, na.rm=T))/(max(x, na.rm=T)-min(x, na.rm=T))
+}
+
+intensity_anomaly <- intensity_data |> 
+    filter(year <= 2024) |> 
+    mutate_at(vars(starts_with("r")), ~max_min(.)) |> 
+    filter(year %in% c(1970:2005, 2017:2021)) |> 
+    mutate(phase = case_when(
+            year <= 2005 ~ "baseline",
+            .default = as.character(year))) |>
+    group_by(phase, PROV_NAM_T, grid_id, lon, lat) |> 
+    summarise(mean_rx1 = mean(rx1_rcp45, na.rm = TRUE),
+              mean_rx5 = mean(rx5_rcp45, na.rm = TRUE),
+              mean_r95 = mean(r95_rcp45, na.rm = TRUE),
+              mean_r99 = mean(r99_rcp45, na.rm = TRUE)) |> 
+    ungroup() |> 
+    drop_na() |> 
+    mutate(intensity_index = (mean_rx1*mean_rx5*mean_r95*mean_r99)^(1/4)) |> 
+    select(-starts_with("mean")) |> 
+    pivot_wider(names_from = "phase", values_from = "intensity_index") |> 
+    mutate(
+           anomaly2017 = `2017` - baseline,
+           anomaly2018 = `2018` - baseline,
+           anomaly2019 = `2019` - baseline,
+           anomaly2020 = `2020` - baseline,
+           anomaly2021 = `2021` - baseline
+           ) 
+
+## สำรวจความผิดปกติด้านปริมาณน้ำฝน
+intensity_anomaly |> 
+    pivot_longer(cols = starts_with("anomaly")) |> 
+    group_by(PROV_NAM_T) |>
+    summarise(mean = mean(value),
+              max = max(value))  |> 
+    arrange(desc(max)) |> data.frame()
+    ggplot(aes(x = lon, y = lat)) +
+    geom_tile(aes(fill = value)) +
+    facet_wrap(~name) +
+    scale_fill_viridis_c(option = "B")
+
+    
+```
+
+
+
+
+
