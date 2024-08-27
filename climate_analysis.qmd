@@ -25,6 +25,8 @@ province_grid <- province_grid  |> select(PROV_NAM_T, TMD_Region, grid_id) |>
 
 thai_province_grid <- inner_join(thai_grid, province_grid, by = "grid_id")
 thai_province_grid %>% head()
+thai_province_grid |> summary()
+thai_province_grid |> filter(grid_id == "grid_1194")
 ```
 
 
@@ -57,11 +59,12 @@ names(r99_rcp45) <- c("year", paste0("grid_",1:2730))
 ```
 
 
+
 จัดการข้อมูลให้ระบุ grid ของแต่ละปรากฎการณ์ได้ และรวมข้อมูลทั้งหมดให้เป็น intensity dataset
 
 ```{r}
 intensity_data <- thai_province_grid |> 
-    right_join(rx1_rcp45 |> 
+    left_join(rx1_rcp45 |> 
                pivot_longer(cols=-year, names_to = "grid_id", values_to = "rx1_rcp45"), by = "grid_id") |> 
     inner_join(rx5_rcp45 |> 
                pivot_longer(cols=-year, names_to = "grid_id", values_to = "rx5_rcp45"), by = join_by("year","grid_id")) |> 
@@ -69,20 +72,29 @@ intensity_data <- thai_province_grid |>
                pivot_longer(cols=-year, names_to = "grid_id", values_to = "r95_rcp45"), by = join_by("year","grid_id")) |> 
     inner_join(r99_rcp45 |> 
                pivot_longer(cols=-year, names_to = "grid_id", values_to = "r99_rcp45"), by = join_by("year","grid_id")) 
+
+intensity_data |> count(grid_id)
 ```
 
 
 ```{r}
 ### filter ให้เหลือสองช่วงเวลา ได้แก่ ช่วง 1970-2005 เป็นช่วงปีฐาน และช่วงปีพิจารณาได้แก่  2017-2021 
 library(viridis)
+### create max-min scaling function
 max_min <- function(x)
-{
+    {
     y<-(x-min(x, na.rm=T))/(max(x, na.rm=T)-min(x, na.rm=T))
-}
+    }
 
+z_score <- function(x)
+    {
+    y<- (x-mean(x,na.rm = T))/sd(x, na.rm=T)
+    }
+
+### ชุดข้อมูล intensity_anomaly
 intensity_anomaly <- intensity_data |> 
     filter(year <= 2024) |> 
-    mutate_at(vars(starts_with("r")), ~max_min(.)) |> 
+    mutate_at(vars(starts_with("r")), ~z_score(.)) |> 
     filter(year %in% c(1970:2005, 2017:2021)) |> 
     mutate(phase = case_when(
             year <= 2005 ~ "baseline",
@@ -93,8 +105,10 @@ intensity_anomaly <- intensity_data |>
               mean_r95 = mean(r95_rcp45, na.rm = TRUE),
               mean_r99 = mean(r99_rcp45, na.rm = TRUE)) |> 
     ungroup() |> 
-    drop_na() |> 
-    mutate(intensity_index = (mean_rx1*mean_rx5*mean_r95*mean_r99)^(1/4)) |> 
+    mutate_at(vars(starts_with("mean")), ~ifelse(is.na(.)==T,0,.)) |> 
+    #drop_na() |> 
+    mutate(intensity_index = (mean_rx1+mean_rx5+mean_r95+mean_r99)/4) |> 
+    #(mean_rx1*mean_rx5*mean_r95*mean_r99)^(1/4)) |> 
     select(-starts_with("mean")) |> 
     pivot_wider(names_from = "phase", values_from = "intensity_index") |> 
     mutate(
@@ -106,21 +120,155 @@ intensity_anomaly <- intensity_data |>
            ) 
 
 ## สำรวจความผิดปกติด้านปริมาณน้ำฝน
-intensity_anomaly |> 
+intensity_anomaly |> summary()
     pivot_longer(cols = starts_with("anomaly")) |> 
-    group_by(PROV_NAM_T) |>
-    summarise(mean = mean(value),
-              max = max(value))  |> 
-    arrange(desc(max)) |> data.frame()
     ggplot(aes(x = lon, y = lat)) +
     geom_tile(aes(fill = value)) +
     facet_wrap(~name) +
-    scale_fill_viridis_c(option = "B")
+    scale_fill_viridis_c(option = "B")+
+    labs(fill = "anomaly score")+
+    ggtitle("Precipitation Anomaly: Intensity")
+```
 
-    
+### duration:
+
+
+## 1.3 สภาพภูมิอากดาศด้านอุณหภูมิสุดขั้ว
+
+CWD - Consecutive wet day (days) จำนวนวันที่ต่อเนื่องกันมากที่สุดในหนึ่งปีที่มีปริมาณฝนตกเท่ากับหรือมากกว่า 1 มิลลิเมตรต่อวัน
+
+
+```{r}
+cwd_rcp45 <- read_csv("01_Climate_Indices/thai_ensemble_rcp45_CWD.csv", col_names = F)
+names(cwd_rcp45) <- c("year", paste0("grid_",1:2730))
+
+duration_data <- thai_province_grid |> 
+    right_join(cwd_rcp45 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "cwd_rcp45"), 
+               by = "grid_id")
+
+duration_data |> 
+    filter(year <= 2024) |> 
+    mutate_at(vars(starts_with("cwd")), ~max_min(.)) |> 
+    filter(year %in% c(1970:2005, 2017:2021)) |> 
+    mutate(phase = case_when(
+            year <= 2005 ~ "baseline",
+            .default = as.character(year))) |>
+    group_by(phase, PROV_NAM_T, grid_id, lon, lat) |> 
+    summarise(duration_index= mean(cwd_rcp45, na.rm = TRUE)) |> 
+    ungroup() |> 
+    drop_na() |> 
+    pivot_wider(names_from = "phase", values_from = "duration_index") |> 
+    mutate(
+           anomaly2017 = `2017` - baseline,
+           anomaly2018 = `2018` - baseline,
+           anomaly2019 = `2019` - baseline,
+           anomaly2020 = `2020` - baseline,
+           anomaly2021 = `2021` - baseline
+           ) -> duration_anomaly
+
+
+## สำรวจความผิดปกติด้านปริมาณน้ำฝน
+duration_anomaly |> 
+    pivot_longer(cols = starts_with("anomaly")) |> 
+    ggplot(aes(x = lon, y = lat)) +
+    geom_tile(aes(fill = value)) +
+    facet_wrap(~name) +
+    scale_fill_viridis_c(option = "B")+
+    labs(fill = "anomaly score")+
+    ggtitle("Precipitation Anomaly: Duration")
+```
+
+### Frequency
+
+- r10mm - Annual number of days when precipitation ≥ 10 mm (days)
+
+- r20mm - Annual number of days when precipitation ≥ 20 mm (days)
+
+
+```{r}
+r10mm_rcp45 <- read_csv("01_Climate_Indices/thai_ensemble_rcp45_R10mm.csv", col_names = F)
+r20mm_rcp45 <- read_csv("01_Climate_Indices/thai_ensemble_rcp45_R20mm.csv", col_names = F)
+names(r10mm_rcp45) <- c("year", paste0("grid_",1:2730))
+names(r20mm_rcp45) <- c("year", paste0("grid_",1:2730))
+
+
+frequency_data <- thai_province_grid |> 
+    right_join(r10mm_rcp45|> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "r10mm_rcp45"), 
+               by = "grid_id") |> 
+    inner_join(r20mm_rcp45 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "r20mm_rcp45"), 
+               by = join_by("year","grid_id"))
+
+frequency_data |> 
+    filter(year <= 2024) |> 
+    mutate_at(vars(starts_with("r")), ~max_min(.)) |> 
+    filter(year %in% c(1970:2005, 2017:2021)) |> 
+    mutate(phase = case_when(
+            year <= 2005 ~ "baseline",
+            .default = as.character(year))) |>
+    group_by(phase, PROV_NAM_T, grid_id, lon, lat) |> 
+    summarise(mean_r10mm= mean(r10mm_rcp45, na.rm = TRUE),
+              mean_r20mm= mean(r20mm_rcp45, na.rm = TRUE)) |> 
+    ungroup() |> 
+    drop_na() |> 
+    mutate(frequency_index = (mean_r10mm*mean_r20mm)^(1/2)) |> 
+    select(-starts_with("mean")) |> 
+    pivot_wider(names_from = "phase", values_from = "frequency_index") |> 
+    mutate(
+           anomaly2017 = `2017` - baseline,
+           anomaly2018 = `2018` - baseline,
+           anomaly2019 = `2019` - baseline,
+           anomaly2020 = `2020` - baseline,
+           anomaly2021 = `2021` - baseline
+           ) -> frequency_anomaly
+
+
+## สำรวจความผิดปกติด้านปริมาณน้ำฝน
+frequency_anomaly |> 
+    pivot_longer(cols = starts_with("anomaly")) |> 
+    ggplot(aes(x = lon, y = lat)) +
+    geom_tile(aes(fill = value)) +
+    facet_wrap(~name) +
+    scale_fill_viridis_c(option = "B")+
+    labs(fill = "anomaly score")+
+    ggtitle("Precipitation Anomaly: Frequency")
 ```
 
 
 
+```{r}
+
+intensity_anomaly <- intensity_anomaly |> select(PROV_NAM_T, grid_id, lon, lat, starts_with("anomaly")) |> 
+    rename_with(~paste0("intensity_",.), .cols = starts_with("anomaly"))
+
+duration_anomaly <- duration_anomaly |> select(PROV_NAM_T, grid_id, lon, lat, starts_with("anomaly")) |> 
+    rename_with(~paste0("duration_",.), .cols = starts_with("anomaly"))
+
+frequency_anomaly <- frequency_anomaly |> select(PROV_NAM_T, grid_id, lon, lat, starts_with("anomaly")) |> 
+    rename_with(~paste0("frequency_",.), .cols = starts_with("anomaly"))
 
 
+intensity_anomaly |> 
+    inner_join(duration_anomaly, by = join_by(PROV_NAM_T, grid_id, lon, lat)) |> 
+    inner_join(frequency_anomaly, by = join_by(PROV_NAM_T, grid_id, lon, lat)) |> 
+    mutate(precip_anomaly2017 = sign(intensity_anomaly2017*duration_anomaly2017*frequency_anomaly2017) * abs(intensity_anomaly2017*duration_anomaly2017*frequency_anomaly2017)^(1/3),
+           precip_anomaly2018 = sign(intensity_anomaly2018*duration_anomaly2018*frequency_anomaly2018) * abs(intensity_anomaly2018*duration_anomaly2018*frequency_anomaly2018)^(1/3),
+           precip_anomaly2019 = sign(intensity_anomaly2019*duration_anomaly2019*frequency_anomaly2019) * abs(intensity_anomaly2019*duration_anomaly2019*frequency_anomaly2019)^(1/3),
+           precip_anomaly2020 = sign(intensity_anomaly2020*duration_anomaly2020*frequency_anomaly2020) * abs(intensity_anomaly2020*duration_anomaly2020*frequency_anomaly2020)^(1/3),
+           precip_anomaly2021 = sign(intensity_anomaly2021*duration_anomaly2021*frequency_anomaly2021) * abs(intensity_anomaly2021*duration_anomaly2021*frequency_anomaly2021)^(1/3)
+           ) |> 
+          filter(intensity_anomaly2021 >0.3) |> 
+          select(ends_with("2021"))
+
+
+
+    pivot_longer(cols = contains("anomaly")) |> 
+    ggplot(aes(x = lon, y = lat)) +
+    geom_tile(aes(fill = value)) +
+    facet_wrap(~name) +
+    scale_fill_viridis_c(option = "B")+
+    labs(fill = "anomaly score")+
+    ggtitle("Precipitation Anomaly: Frequency")
+```

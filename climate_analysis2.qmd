@@ -1,0 +1,1185 @@
+---
+title: "Untitled"
+format: html
+---
+
+```{r}
+library(tidyverse)
+tidyverse_conflicts()
+```
+
+# 1. import ข้อมูล grid
+
+```{r}
+## climate indices datasets
+climate_files <- list.files(path="01_Climate_Indices/")
+## grid label dataset
+grid_files <- list.files(path="02_latlon_dataset") 
+```
+
+## ชุดข้อมูล grid ของประเทศไทยและจังหวัด
+
+นำเข้าชุดข้อมูล grid ของประเทศไทย
+
+ชุดข้อมูล grid มีจำนวน 3 ชุด
+
+-   **"1_lonlat_rcm_thai_2730Grid.csv"** บันทึก grid_id และ lon, lat ทั้งหมด
+
+-   **"2_thai_province_2730Grid_weight_rcm.csv"** บันทึก grid_id มีการจับคู่ grid_id กับจังหวัดของประเทศไทย แต่มีบาง grid ที่มีส่วนคาบเกี่ยวสองจังหวัด
+
+-   **"3_lonlat_rcm_thai_select.csv"** บันทึกข้อมูล grid_id ที่คัดกรองเฉพาะส่วนที่เป็นแผ่นดินของประเทศไทย
+
+## 1.1 ชุดข้อมูล grid_id ของประเทศไทย (เฉพาะส่วนแผ่นดิน)
+
+```{r}
+## thailand grid
+thai_grid <- read_csv(paste0("02_latlon_dataset/",grid_files[3]))
+thai_grid <- thai_grid |> 
+    mutate(grid_id = paste0("grid_",grid_id))
+thai_grid |> dim()
+thai_grid |> 
+    ggplot(aes(x=lon, y=lat))+
+    geom_tile(col = "black")
+```
+
+จำนวน grid ทั้งหมดของประเทศไทยคือ 1078 grid แสดงว่าโดยเฉลี่ยจังหวัดนึงจะมี 14 grid
+
+## 1.2 ชุดข้อมูล grid_id จำแนกตามจังหวัด
+
+```{r}
+### grid จำแนกตามจังหวัด
+province_grid <- read_csv("02_latlon_dataset/2_thai_province_2730Grid_weight_rcm.csv")
+province_grid |> 
+    group_by(PROV_NAM_T) |> count() |> 
+    summary()
+## น้่อยสุดมี 4 grid มากกสุดมี 66 grid
+
+province_grid |> 
+    group_by(PROV_NAM_T) |> count() |> 
+    arrange(n)
+```
+
+# 2. import ข้อมูลสภาพภูมิอากาศด้านปริมาณน้ำฝนสุดขั้ว
+
+จำแนกเป็น 3 องค์ประกอบ ได้แก่ **intensity** คือความเข้มข้นของปริมาณน้ำฝน , **duration** คือ ความยาวนานของวันที่ฝนตกมากอย่างผิดปกติ, **frequency** คือ ความถี่ของการเกิดวันที่ฝนตกมากผิดปกติ
+
+โดยมีการคำนวณสภาพภูมิอากาศดังกล่าวเอาไว้ 2 โมเดลได้แก่
+
+- rcp4.5 มีสมมุติฐานว่าอัตราการปล่อยก๊าซเรือนกระจกอยู่จำกัดให้อยู่ในระดับปานกลางอย่างต่อเนื่อง
+
+- rcp8.5 มีสมมุติฐานว่าอัตราการปล่อยก๊าซเรือนกระจกไม่ถูกจำกัด
+
+
+รายละเอียดมีดังนี้
+
+## 2.1 ข้อมูล intensity: ความเข้มข้นของปริมาณน้ำฝน
+
+**Rx1day** - ปริมาณน้ำฝน (mm) ในวันที่มีฝนตกมากที่สุด
+
+**Rx5day** - ปริมาณน้ำฝน (mm) ในวันที่มีฝนตกมากที่สุด 5 วันติดต่อกัน
+
+**R95p** - ผลรวมของปริมาณน้ำฝนในแต่ละปี โดยนับเฉพาะวันที่ปริมาณน้ำฝนสูงกว่าเปอร์เซ็นไทล์ที่ 95 (mm) ตัวชี้วัดนี้บ่งชี้ปริมาณน้ำฝนรวมในปีนั้นที่ตกมากอย่างผิดปกติ
+
+**R99p** - ผลรวมของปริมาณน้ำฝนในแต่ละปี โดยนับเฉพาะวันที่ปริมาณน้ำฝนสูงกว่าเปอร์เซ็นไทล์ที่ 99 (mm) ตัวชี้วัดนี้บ่งชี้ปริมาณน้ำฝนรวมในปีนั้นที่ตกมากอย่างผิดปกติ
+
+```{r}
+#### import intensity data model rcp45
+rx1_rcp45 <- read_csv("01_Climate_Indices/thai_ensemble_rcp45_RX1day.csv", col_name = F)
+rx5_rcp45 <- read_csv("01_Climate_Indices/thai_ensemble_rcp45_RX5day.csv", col_name = F)
+r95_rcp45 <- read_csv("01_Climate_Indices/thai_ensemble_rcp45_R95p.csv", col_name = F)
+r99_rcp45 <- read_csv("01_Climate_Indices/thai_ensemble_rcp45_R99p.csv", col_name = F)
+
+#### import intensity data model rcp85
+
+rx1_rcp85 <- read_csv("01_Climate_Indices/thai_ensemble_rcp85_RX1day.csv", col_name = F)
+rx5_rcp85 <- read_csv("01_Climate_Indices/thai_ensemble_rcp85_RX5day.csv", col_name = F)
+r95_rcp85 <- read_csv("01_Climate_Indices/thai_ensemble_rcp85_R95p.csv", col_name = F)
+r99_rcp85 <- read_csv("01_Climate_Indices/thai_ensemble_rcp85_R99p.csv", col_name = F)
+#### --- ตั้งชื่อ grid
+names(rx1_rcp45) <- c("year", paste0("grid_",1:2730))
+names(rx5_rcp45) <- c("year", paste0("grid_",1:2730))
+names(r95_rcp45) <- c("year", paste0("grid_",1:2730))
+names(r99_rcp45) <- c("year", paste0("grid_",1:2730))
+
+names(rx1_rcp85) <- c("year", paste0("grid_",1:2730))
+names(rx5_rcp85) <- c("year", paste0("grid_",1:2730))
+names(r95_rcp85) <- c("year", paste0("grid_",1:2730))
+names(r99_rcp85) <- c("year", paste0("grid_",1:2730))
+```
+
+จะสร้างชุดข้อมูล `intensity_data` โดย map กับ grid ที่อยู่ภายใต้ประเทศไทยด้วย
+
+- rcp45
+
+```{r}
+intensity_data45 <- thai_grid |> 
+    inner_join(rx1_rcp45 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "rx1_rcp45"), by = "grid_id") |> 
+    inner_join(rx5_rcp45 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "rx5_rcp45"), by = join_by("year","grid_id")) |> 
+    inner_join(r95_rcp45 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "r95_rcp45"), by = join_by("year","grid_id")) |> 
+    inner_join(r99_rcp45 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "r99_rcp45"), by = join_by("year","grid_id")) 
+
+intensity_data45 |> count(grid_id)
+```
+
+
+- rcp85
+
+```{r}
+intensity_data85 <- thai_grid |> 
+    inner_join(rx1_rcp85 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "rx1_rcp85"), by = "grid_id") |> 
+    inner_join(rx5_rcp85 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "rx5_rcp85"), by = join_by("year","grid_id")) |> 
+    inner_join(r95_rcp85 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "r95_rcp85"), by = join_by("year","grid_id")) |> 
+    inner_join(r99_rcp85 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "r99_rcp85"), by = join_by("year","grid_id")) 
+
+intensity_data85 |> count(grid_id)
+```
+
+## 2.2 ข้อมูล duration: ความยาวนานของการเกิดปริมาณน้ำฝนสุดขั้ว
+
+CWD - Consecutive wet day (days) จำนวนวันที่ต่อเนื่องกันมากที่สุดในหนึ่งปีที่มีปริมาณฝนตกเท่ากับหรือมากกว่า 1 มิลลิเมตรต่อวัน
+
+```{r}
+## rcp45
+cwd_rcp45 <- read_csv("01_Climate_Indices/thai_ensemble_rcp45_CWD.csv", col_names = F)
+names(cwd_rcp45) <- c("year", paste0("grid_",1:2730))
+
+## rcp85
+cwd_rcp85 <- read_csv("01_Climate_Indices/thai_ensemble_rcp85_CWD.csv", col_names = F)
+names(cwd_rcp85) <- c("year", paste0("grid_",1:2730))
+
+
+duration_data45 <- thai_grid |> 
+    inner_join(cwd_rcp45 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "cwd_rcp45"), 
+               by = "grid_id")
+
+duration_data85 <- thai_grid |> 
+    inner_join(cwd_rcp85 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "cwd_rcp85"), 
+               by = "grid_id")               
+```
+
+
+## 2.3 ข้อมูล Frequency
+
+-   r10mm - Annual number of days when precipitation ≥ 10 mm (days)
+
+-   r20mm - Annual number of days when precipitation ≥ 20 mm (days)
+
+```{r}
+## rcp45
+r10mm_rcp45 <- read_csv("01_Climate_Indices/thai_ensemble_rcp45_R10mm.csv", col_names = F)
+r20mm_rcp45 <- read_csv("01_Climate_Indices/thai_ensemble_rcp45_R20mm.csv", col_names = F)
+names(r10mm_rcp45) <- c("year", paste0("grid_",1:2730))
+names(r20mm_rcp45) <- c("year", paste0("grid_",1:2730))
+
+## rcp85
+r10mm_rcp85 <- read_csv("01_Climate_Indices/thai_ensemble_rcp85_R10mm.csv", col_names = F)
+r20mm_rcp85 <- read_csv("01_Climate_Indices/thai_ensemble_rcp85_R20mm.csv", col_names = F)
+names(r10mm_rcp85) <- c("year", paste0("grid_",1:2730))
+names(r20mm_rcp85) <- c("year", paste0("grid_",1:2730))
+
+
+frequency_data45 <- thai_grid |> 
+    inner_join(r10mm_rcp45|> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "r10mm_rcp45"), 
+               by = "grid_id") |> 
+    inner_join(r20mm_rcp45 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "r20mm_rcp45"), 
+               by = join_by("year","grid_id"))
+
+
+frequency_data85 <- thai_grid |> 
+    inner_join(r10mm_rcp85|> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "r10mm_rcp85"), 
+               by = "grid_id") |> 
+    inner_join(r20mm_rcp85 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "r20mm_rcp85"), 
+               by = join_by("year","grid_id"))
+
+```
+
+
+# 3. คำนวณดัชนี anomaly ของสภาพน้ำฝนสุดขั้ว
+
+```{r echo = F}
+library(viridis)
+```
+
+- การคำนวณดัชนีปริมาณน้ำฝนสุดขั้วจะใช้ข้อมูลดัชนีน้ำฝนสุดขั้วทั้ง 3 ด้านในช่วงปี 1970-2005 เป็นช่วงปีฐาน [Unicef (2022)](https://www.unicef.org/thailand/media/10361/file/Climate%20Change%20Impact%20Assessment%20-%20Full%20report.pdf)
+
+- ปีที่พิจารณาหรือปีที่จะคำนวณค่าผิดปกติได้แก่ช่วงปี 2017 - 2021 ที่เป็นช่วงปีที่มีคะแนน O-NET
+
+การคำนวณดัชนีความผิดปกติ (anomaly indices) อาจทำได้สองลักษณะ ลักษณะแรกคือ คำนวณแยกรายปีที่พิจารณา และลักษณะที่สองคือคำนวณเป็นค่าเฉลี่ยของช่วงปีที่พิจารณา
+
+การคำนวณดัชนี anomaly มีขั้นตอนดังนี้
+
+1. แปลงคะแนนดัชนีน้ำฝนสุดขั้วเป็นคะแนนมาตรฐาน โดยใช้ mean และ sd ในช่วงปีฐานกับช่วงที่พิจารณา
+
+2. คำนวณ anomaly index จากผลต่างระหว่างดัชนีปริมาณน้ำฝนสุดขั้วระหว่างปีพิจารณากับปีฐาน
+
+
+## 3.1 Anomaly indices ด้าน intensity
+
+```{r}
+### create max-min scaling function
+max_min <- function(x)
+    {
+    y<-(x-min(x, na.rm=T))/(max(x, na.rm=T)-min(x, na.rm=T))
+    }
+
+z_score <- function(x)
+    {
+    y<- (x-mean(x,na.rm = T))/sd(x, na.rm=T)
+    }
+
+### ชุดข้อมูล intensity_anomaly
+intensity_anomaly45 <- intensity_data45 |> 
+    filter(year %in% c(1970:2005, 2017:2021)) |> 
+    mutate_at(vars(starts_with("r")), ~z_score(.)) |> ## standardized ดัชนีเป็น Z-score
+    mutate(phase = case_when(
+            year <= 2005 ~ "baseline",
+            .default = as.character(year))) |>
+    group_by(phase, grid_id, lon, lat) |> 
+    summarise(mean_rx1 = mean(rx1_rcp45, na.rm = TRUE),
+              mean_rx5 = mean(rx5_rcp45, na.rm = TRUE),
+              mean_r95 = mean(r95_rcp45, na.rm = TRUE),
+              mean_r99 = mean(r99_rcp45, na.rm = TRUE)) |> 
+    ungroup() |> 
+    mutate_at(vars(starts_with("mean")), ~ifelse(is.na(.)==T,0,.)) |> 
+    #drop_na() |> 
+    mutate(intensity_index = (mean_rx1+mean_rx5+mean_r95+mean_r99)/4) |>  ## รวมกันแบบผลบวก
+    #(mean_rx1*mean_rx5*mean_r95*mean_r99)^(1/4)) |> 
+    select(-starts_with("mean")) |> 
+    pivot_wider(names_from = "phase", values_from = "intensity_index") |> 
+    mutate(
+           rcp45_anomaly2017 = `2017` - baseline,
+           rcp45_anomaly2018 = `2018` - baseline,
+           rcp45_anomaly2019 = `2019` - baseline,
+           rcp45_anomaly2020 = `2020` - baseline,
+           rcp45_anomaly2021 = `2021` - baseline
+           ) 
+
+intensity_anomaly85 <- intensity_data85 |> 
+    filter(year %in% c(1970:2005, 2017:2021)) |> 
+    mutate_at(vars(starts_with("r")), ~z_score(.)) |> ## standardized ดัชนีเป็น Z-score
+    mutate(phase = case_when(
+            year <= 2005 ~ "baseline",
+            .default = as.character(year))) |>
+    group_by(phase, grid_id, lon, lat) |> 
+    summarise(mean_rx1 = mean(rx1_rcp85, na.rm = TRUE),
+              mean_rx5 = mean(rx5_rcp85, na.rm = TRUE),
+              mean_r95 = mean(r95_rcp85, na.rm = TRUE),
+              mean_r99 = mean(r99_rcp85, na.rm = TRUE)) |> 
+    ungroup() |> 
+    #mutate_at(vars(starts_with("mean")), ~ifelse(is.na(.)==T,0,.)) |> 
+    drop_na() |> 
+    mutate(intensity_index = (mean_rx1+mean_rx5+mean_r95+mean_r99)/4) |>  ## รวมกันแบบผลบวก
+    #(mean_rx1*mean_rx5*mean_r95*mean_r99)^(1/4)) |> 
+    select(-starts_with("mean")) |> 
+    pivot_wider(names_from = "phase", values_from = "intensity_index") |> 
+    mutate(
+           rcp85_anomaly2017 = `2017` - baseline,
+           rcp85_anomaly2018 = `2018` - baseline,
+           rcp85_anomaly2019 = `2019` - baseline,
+           rcp85_anomaly2020 = `2020` - baseline,
+           rcp85_anomaly2021 = `2021` - baseline
+           ) 
+
+
+
+
+## สำรวจความผิดปกติด้านปริมาณน้ำฝน rcp45
+intensity_anomaly45 |> 
+    pivot_longer(cols = contains("anomaly")) |> 
+    ggplot(aes(x = lon, y = lat)) +
+    geom_tile(aes(fill = value), col = "black") +
+    facet_wrap(~name) +
+    scale_fill_gradientn(
+    colors = inferno(100),
+    values = scales::rescale(c(-2, 3, 15)),
+    limits = c(-2, 15), breaks = c(0,3,6,10,15))+
+    labs(fill = "anomaly score")+
+    labs(fill = "anomaly score")+
+    ggtitle("RCP45 Precipitation Anomaly: Intensity")
+
+
+## สำรวจความผิดปกติด้านปริมาณน้ำฝน rcp85
+intensity_anomaly85 |> 
+    pivot_longer(cols = contains("anomaly")) |> 
+    ggplot(aes(x = lon, y = lat)) +
+    geom_tile(aes(fill = value), col = "black") +
+    facet_wrap(~name) +
+    scale_fill_gradientn(
+    colors = inferno(100),
+    values = scales::rescale(c(-2, 3, 15)),
+    limits = c(-2, 15), breaks = c(0,3,6,10,15))+
+    labs(fill = "anomaly score")+
+    ggtitle("RCP85 Precipitation Anomaly: Intensity")
+```
+
+## 3.2 Anomaly ด้าน duration
+
+```{r}
+duration_anomaly45 <- duration_data45 |> 
+    filter(year <= 2021) |> 
+    mutate_at(vars(starts_with("cwd")), ~z_score(.)) |> 
+    filter(year %in% c(1970:2005, 2017:2021)) |> 
+    mutate(phase = case_when(
+            year <= 2005 ~ "baseline",
+            .default = as.character(year))) |>
+    group_by(phase, grid_id, lon, lat) |> 
+    summarise(duration_index= mean(cwd_rcp45, na.rm = TRUE)) |> 
+    ungroup() |> 
+    drop_na() |> 
+    pivot_wider(names_from = "phase", values_from = "duration_index") |> 
+    mutate(
+           rcp45_anomaly2017 = `2017` - baseline,
+           rcp45_anomaly2018 = `2018` - baseline,
+           rcp45_anomaly2019 = `2019` - baseline,
+           rcp45_anomaly2020 = `2020` - baseline,
+           rcp45_anomaly2021 = `2021` - baseline
+           )
+
+duration_anomaly85 <- duration_data85 |> 
+    filter(year <= 2021) |> 
+    mutate_at(vars(starts_with("cwd")), ~z_score(.)) |> 
+    filter(year %in% c(1970:2005, 2017:2021)) |> 
+    mutate(phase = case_when(
+            year <= 2005 ~ "baseline",
+            .default = as.character(year))) |>
+    group_by(phase, grid_id, lon, lat) |> 
+    summarise(duration_index= mean(cwd_rcp85, na.rm = TRUE)) |> 
+    ungroup() |> 
+    drop_na() |> 
+    pivot_wider(names_from = "phase", values_from = "duration_index") |> 
+    mutate(
+           rcp85_anomaly2017 = `2017` - baseline,
+           rcp85_anomaly2018 = `2018` - baseline,
+           rcp85_anomaly2019 = `2019` - baseline,
+           rcp85_anomaly2020 = `2020` - baseline,
+           rcp85_anomaly2021 = `2021` - baseline
+           )
+
+
+## สำรวจความผิดปกติด้านปริมาณน้ำฝน
+duration_anomaly45 |> 
+    pivot_longer(cols = contains("anomaly")) |> 
+    ggplot(aes(x = lon, y = lat)) +
+    geom_tile(aes(fill = value), col = "black") +
+    facet_wrap(~name) +
+    scale_fill_gradientn(
+    colors = inferno(100),
+    values = scales::rescale(c(-3, 0, 2)),
+    limits = c(-2.5, 2.5), breaks = c(-3,0,2))+
+    labs(fill = "anomaly score")+
+    labs(fill = "anomaly score")+
+    ggtitle("Precipitation Anomaly: Duration")
+
+## สำรวจความผิดปกติด้านปริมาณน้ำฝน
+duration_anomaly85 |> 
+    pivot_longer(cols = contains("anomaly")) |> 
+    ggplot(aes(x = lon, y = lat)) +
+    geom_tile(aes(fill = value), col = "black") +
+    facet_wrap(~name) +
+    scale_fill_gradientn(
+    colors = inferno(100),
+    values = scales::rescale(c(-3, 0, 2)),
+    limits = c(-2.5, 2.5), breaks = c(-3,0,2))+
+    labs(fill = "anomaly score")+
+    ggtitle("Precipitation Anomaly: Duration")
+```
+
+
+## 3.3 Anomaly ด้าน frequency
+
+
+```{r}
+frequency_anomaly45 <- frequency_data45 |> 
+    filter(year <= 2021) |>
+    mutate_at(vars(starts_with("r")), ~z_score(.)) |> 
+    filter(year %in% c(1970:2005, 2017:2021)) |> 
+    mutate(phase = case_when(
+            year <= 2005 ~ "baseline",
+            .default = as.character(year))) |>
+    group_by(phase, grid_id, lon, lat) |> 
+    summarise(mean_r10mm= mean(r10mm_rcp45, na.rm = TRUE),
+              mean_r20mm= mean(r20mm_rcp45, na.rm = TRUE)) |> 
+    ungroup() |> 
+    drop_na() |> 
+    mutate(frequency_index = (mean_r10mm + mean_r20mm)/2) |> 
+    select(-starts_with("mean")) |> 
+    pivot_wider(names_from = "phase", values_from = "frequency_index") |> 
+    mutate(
+           rcp45_anomaly2017 = `2017` - baseline,
+           rcp45_anomaly2018 = `2018` - baseline,
+           rcp45_anomaly2019 = `2019` - baseline,
+           rcp45_anomaly2020 = `2020` - baseline,
+           rcp45_anomaly2021 = `2021` - baseline
+           )
+
+frequency_anomaly85 <- frequency_data85 |> 
+    filter(year <= 2021) |>
+    mutate_at(vars(starts_with("r")), ~z_score(.)) |> 
+    filter(year %in% c(1970:2005, 2017:2021)) |> 
+    mutate(phase = case_when(
+            year <= 2005 ~ "baseline",
+            .default = as.character(year))) |>
+    group_by(phase, grid_id, lon, lat) |> 
+    summarise(mean_r10mm= mean(r10mm_rcp85, na.rm = TRUE),
+              mean_r20mm= mean(r20mm_rcp85, na.rm = TRUE)) |> 
+    ungroup() |> 
+    drop_na() |> 
+    mutate(frequency_index = (mean_r10mm + mean_r20mm)/2) |> 
+    select(-starts_with("mean")) |> 
+    pivot_wider(names_from = "phase", values_from = "frequency_index") |> 
+    mutate(
+           rcp85_anomaly2017 = `2017` - baseline,
+           rcp85_anomaly2018 = `2018` - baseline,
+           rcp85_anomaly2019 = `2019` - baseline,
+           rcp85_anomaly2020 = `2020` - baseline,
+           rcp85_anomaly2021 = `2021` - baseline
+           )
+
+## สำรวจความผิดปกติด้านปริมาณน้ำฝน
+frequency_anomaly45 |> 
+    pivot_longer(cols = contains("anomaly")) |> 
+    ggplot(aes(x = lon, y = lat)) +
+    geom_tile(aes(fill = value), col = "black") +
+    facet_wrap(~name) +
+    scale_fill_gradientn(
+    colors = inferno(100),
+    values = scales::rescale(c(-5, 0, 3.5)),
+    limits = c(-5, 3.5), breaks = c(-2,0,3.5))+
+    labs(fill = "anomaly score")+
+    ggtitle("Precipitation Anomaly: Frequency")
+
+## สำรวจความผิดปกติด้านปริมาณน้ำฝน
+frequency_anomaly85 |> 
+    pivot_longer(cols = contains("anomaly")) |> 
+    ggplot(aes(x = lon, y = lat)) +
+    geom_tile(aes(fill = value), col = "black") +
+    facet_wrap(~name) +
+    scale_fill_gradientn(
+    colors = inferno(100),
+    values = scales::rescale(c(-5, 0, 3.5)),
+    limits = c(-5, 3.5), breaks = c(-2,0,3.5))+
+    labs(fill = "anomaly score")+
+    ggtitle("Precipitation Anomaly: Frequency")
+
+
+```
+
+## 3.4 รวมดัชนีความผิดปกติสภาพภูมิอากาศด้านปริมาณน้ำฝนสุดขั้ว
+
+
+```{r}
+### --- rcp45
+intensity_anomaly45 <- intensity_anomaly45 |> select(grid_id, lon, lat, contains("anomaly")) |> 
+    rename_with(~paste0("intensity_",.), .cols = contains("anomaly"))
+
+duration_anomaly45 <- duration_anomaly45 |> select(grid_id, lon, lat, contains("anomaly")) |> 
+    rename_with(~paste0("duration_",.), .cols = contains("anomaly"))
+
+frequency_anomaly45 <- frequency_anomaly45 |> select(grid_id, lon, lat, contains("anomaly")) |> 
+    rename_with(~paste0("frequency_",.), .cols = contains("anomaly"))
+
+## ดัชนีความผิดปกติแยกด้าน รายพื้นที่รายปี
+precipitaion_anomaly45 <-  intensity_anomaly45 |> 
+    inner_join(duration_anomaly45, by = join_by(grid_id, lon, lat)) |> 
+    inner_join(frequency_anomaly45, by = join_by(grid_id, lon, lat)) |> 
+    pivot_longer(4:18, values_to = "rcp45_anomaly_value") |> 
+    separate(col = "name", into = c("indicator","year"), sep = "_anomaly")
+
+precipitaion_anomaly45 <- precipitaion_anomaly45 |> 
+    rename(precipitaion_anomaly = 6)
+
+### --- rcp85
+intensity_anomaly85 <- intensity_anomaly85 |> select(grid_id, lon, lat, contains("anomaly")) |> 
+    rename_with(~paste0("intensity_",.), .cols = contains("anomaly"))
+
+duration_anomaly85 <- duration_anomaly85 |> select(grid_id, lon, lat, contains("anomaly")) |> 
+    rename_with(~paste0("duration_",.), .cols = contains("anomaly"))
+
+frequency_anomaly85 <- frequency_anomaly85 |> select(grid_id, lon, lat, contains("anomaly")) |> 
+    rename_with(~paste0("frequency_",.), .cols = contains("anomaly"))
+
+## ดัชนีความผิดปกติแยกด้าน รายพื้นที่รายปี
+precipitaion_anomaly85 <-  intensity_anomaly85 |> 
+    inner_join(duration_anomaly85, by = join_by(grid_id, lon, lat)) |> 
+    inner_join(frequency_anomaly85, by = join_by(grid_id, lon, lat)) |> 
+    pivot_longer(4:18, values_to = "rcp85_anomaly_value") |> 
+    separate(col = "name", into = c("indicator","year"), sep = "_anomaly")
+
+precipitaion_anomaly85 <- precipitaion_anomaly85 |> 
+    rename(precipitaion_anomaly = 6)
+
+
+## ชุดข้อมูลแบบยาวบันทึก anomaly สองโมเดล
+precipitation_anomaly <- bind_rows(precipitaion_anomaly45, precipitaion_anomaly85)
+```
+
+
+
+```{r}
+### rcp45
+### --- ท่อนนี้ไม่ได้ใช้
+intensity_anomaly45 |> 
+    inner_join(duration_anomaly45, by = join_by(grid_id, lon, lat)) |> 
+    inner_join(frequency_anomal45y, by = join_by(grid_id, lon, lat)) |> 
+    mutate(precip_anomaly2017 = (intensity_anomaly2017+duration_anomaly2017+frequency_anomaly2017)/3,
+           precip_anomaly2018 = (intensity_anomaly2018+duration_anomaly2018+frequency_anomaly2018)/3,
+           precip_anomaly2019 = (intensity_anomaly2019+duration_anomaly2019+frequency_anomaly2019)/3,
+           precip_anomaly2020 = (intensity_anomaly2020+duration_anomaly2020+frequency_anomaly2020)/3,
+           precip_anomaly2021 = (intensity_anomaly2021+duration_anomaly2021+frequency_anomaly2021)/3) |> 
+    select(grid_id, lon, lat, starts_with("precip")) |> 
+    pivot_longer(cols = contains("anomaly")) |> 
+    ggplot(aes(x = lon, y = lat)) +
+    geom_tile(aes(fill = value), col = "black") +
+    facet_wrap(~name) +
+    scale_fill_viridis_c(option = "B")+
+    labs(fill = "anomaly score")+
+    ggtitle("Precipitation Anomaly")
+
+
+ #   mutate(precip_anomaly2017 = sign(intensity_anomaly2017*duration_anomaly2017*frequency_anomaly2017) * abs(intensity_anomaly2017*duration_anomaly2017*frequency_anomaly2017)^(1/3),
+ #          precip_anomaly2018 = sign(intensity_anomaly2018*duration_anomaly2018*frequency_anomaly2018) * abs(intensity_anomaly2018*duration_anomaly2018*frequency_anomaly2018)^(1/3),
+ #          precip_anomaly2019 = sign(intensity_anomaly2019*duration_anomaly2019*frequency_anomaly2019) * abs(intensity_anomaly2019*duration_anomaly2019*frequency_anomaly2019)^(1/3),
+ #          precip_anomaly2020 = sign(intensity_anomaly2020*duration_anomaly2020*frequency_anomaly2020) * abs(intensity_anomaly2020*duration_anomaly2020*frequency_anomaly2020)^(1/3),
+ #          precip_anomaly2021 = sign(intensity_anomaly2021*duration_anomaly2021*frequency_anomaly2021) * abs(intensity_anomaly2021*duration_anomaly2021*frequency_anomaly2021)^(1/3)
+  #         ) 
+```
+
+
+# 4. import ข้อมูลสภาพอุณหภูมิสุดขั้ว
+
+อุณหภูมิสุดขั้วมีการจำแนกมิติย่อยเหมือนกับปริมาณน้ำฝนสุดขั้วได้แก่ intensity, duration และ frequency รายละเอียดมีดังนี้
+
+
+## 4.1 ข้อมูล intensity : ความเข้มข้นของอุณหภูมิสุดขั้ว
+
+- **TXn_rcp45** -- อุณหภูมิสูงที่สุดในวันที่เย็นที่สุด
+
+- **TNn_rcp45** -- อุณหภูมิต่ำที่สุดในวันที่เย็นที่สุด
+
+- **TXx_rcp45** -- อุณหภูมิสูงที่สุดในวันที่ร้อนที่สุด
+
+- **TNx_rcp45** -- อุณหภูมิต่ำที่สุดในวันที่ร้อนที่สุด
+
+```{r}
+climate_files |> data.frame() |> 
+    filter(str_detect(climate_files, "TXn|TNn|TXx|TNx|DTR")) |> pull() -> list
+named_list_of_files <- set_names(list, str_remove(list, ".csv"))
+intensity <- map(named_list_of_files, ~read_csv(paste0("01_Climate_Indices/",.),
+                                        col_names = F))
+names(intensity)
+
+```
+
+```{r}
+
+#### import intensity data model rcp45
+TXn_rcp45 <- intensity$thai_ensemble_rcp45_TXn
+TNn_rcp45 <- intensity$thai_ensemble_rcp45_TNn
+TXx_rcp45 <- intensity$thai_ensemble_rcp45_TXx
+TNx_rcp45 <- intensity$thai_ensemble_rcp45_TNx
+DTR_rcp45 <- intensity$thai_ensemble_rcp45_DTR
+
+#### import intensity data model rcp85
+TXn_rcp85 <- intensity$thai_ensemble_rcp85_TXn
+TNn_rcp85 <- intensity$thai_ensemble_rcp85_TNn
+TXx_rcp85 <- intensity$thai_ensemble_rcp85_TXx
+TNx_rcp85 <- intensity$thai_ensemble_rcp85_TNx
+DTR_rcp85 <- intensity$thai_ensemble_rcp85_DTR
+
+#### --- ตั้งชื่อ grid
+names(TXn_rcp45) <- c("year", paste0("grid_",1:2730))
+names(TNn_rcp45) <- c("year", paste0("grid_",1:2730))
+names(TXx_rcp45) <- c("year", paste0("grid_",1:2730))
+names(TNx_rcp45) <- c("year", paste0("grid_",1:2730))
+names(DTR_rcp45) <- c("year", paste0("grid_",1:2730))
+
+names(TXn_rcp85) <- c("year", paste0("grid_",1:2730))
+names(TNn_rcp85) <- c("year", paste0("grid_",1:2730))
+names(TXx_rcp85) <- c("year", paste0("grid_",1:2730))
+names(TNx_rcp85) <- c("year", paste0("grid_",1:2730))
+names(DTR_rcp85) <- c("year", paste0("grid_",1:2730))
+
+```
+
+
+จะสร้างชุดข้อมูล `intensity_data` โดย map กับ grid ที่อยู่ภายใต้ประเทศไทยด้วย
+
+- rcp45
+
+```{r}
+intensity_data45 <- thai_grid |> 
+    inner_join(TXn_rcp45 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "TXn_rcp45"), by = "grid_id") |> 
+    inner_join(TNn_rcp45 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "TNn_rcp45"), by = join_by("year","grid_id")) |> 
+    inner_join(TXx_rcp45 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "TXx_rcp45"), by = join_by("year","grid_id")) |> 
+    inner_join(TNx_rcp45 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "TNx_rcp45"), by = join_by("year","grid_id")) |> 
+    inner_join(DTR_rcp45 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "DTR_rcp45"), by = join_by("year","grid_id")) 
+
+intensity_data45 |> count(grid_id)
+```
+
+
+- rcp85
+
+```{r}
+intensity_data85 <-  thai_grid |> 
+    inner_join(TXn_rcp85 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "TXn_rcp85"), by = "grid_id") |> 
+    inner_join(TNn_rcp85 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "TNn_rcp85"), by = join_by("year","grid_id")) |> 
+    inner_join(TXx_rcp85 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "TXx_rcp85"), by = join_by("year","grid_id")) |> 
+    inner_join(TNx_rcp85 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "TNx_rcp85"), by = join_by("year","grid_id")) |> 
+    inner_join(DTR_rcp85 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "DTR_rcp85"), by = join_by("year","grid_id")) 
+
+intensity_data85 |> count(grid_id)
+```
+
+
+
+## 4.2 ข้อมูล duration :  ความยาวนานของการเกิดอุณหภูมิสุดขั้ว
+
+มี 2 ตัวชี้วัด
+
+- CSDI -- Annual number of days with at least 6 consecutive days when Tmin < 10th percentile
+
+- WSDI -- Annual number of days with at least 6 consecutive days when Tmax > 90th percentile 
+
+
+
+```{r}
+climate_files |> data.frame() |> 
+    filter(str_detect(climate_files, "CSDI|WSDI|GSL")) |> pull() -> list
+named_list_of_files <- set_names(list, str_remove(list, ".csv"))
+duration <- map(named_list_of_files, ~read_csv(paste0("01_Climate_Indices/",.),
+                                                col_names = F))
+names(duration)
+
+```
+
+
+```{r}
+
+#### import duration data model rcp45
+CSDI_rcp45 <- duration$thai_ensemble_rcp45_CSDI
+WSDI_rcp45 <- duration$thai_ensemble_rcp45_WSDI
+
+
+#### import duration data model rcp85
+CSDI_rcp85 <- duration$thai_ensemble_rcp85_CSDI
+WSDI_rcp85 <- duration$thai_ensemble_rcp85_WSDI
+
+
+#### --- ตั้งชื่อ grid
+names(CSDI_rcp45) <- c("year", paste0("grid_",1:2730))
+names(WSDI_rcp45) <- c("year", paste0("grid_",1:2730))
+
+names(CSDI_rcp85) <- c("year", paste0("grid_",1:2730))
+names(WSDI_rcp85) <- c("year", paste0("grid_",1:2730))
+
+
+```
+
+รวมข้อมูลกับ grid data
+
+
+```{r}
+duration_data45 <- thai_grid |> 
+    inner_join(CSDI_rcp45 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "CSDI_rcp45"), 
+               by = "grid_id") |> 
+    inner_join(WSDI_rcp45 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "WDSI_rcp45"), 
+               by = join_by("grid_id","year"))
+
+duration_data85 <- thai_grid |> 
+    inner_join(CSDI_rcp85 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "CSDI_rcp85"), 
+               by = "grid_id") |> 
+    inner_join(WSDI_rcp85 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "WDSI_rcp85"), 
+               by = join_by("grid_id","year")) 
+```
+
+
+
+## 4.3 ข้อมูล frequency : ความถี่ของอุณหภูมิสุดขั้ว
+
+- TN10P -- Share of days when Tmax < 10th percentile (%)
+
+- TN90p -- Share of days when Tmin < 10th percentile (%)
+
+- TX10p -- Share of days when Tmax > 90th percentile (%)
+
+- TX90p -- Share of days when Tmin > 90th percentile (%)
+
+
+
+```{r}
+climate_files |> data.frame() |> 
+    filter(str_detect(climate_files, "TN10|TN90|TX10|TX90")) |> pull() -> list
+named_list_of_files <- set_names(list, str_remove(list, ".csv"))
+frequency <- map(named_list_of_files, ~read_csv(paste0("01_Climate_Indices/",.),
+                                                col_names = F),
+                .progress = TRUE)
+names(frequency)
+```
+
+
+```{r}
+#### import frequency data model rcp45
+TN10P_rcp45 <- frequency$thai_ensemble_rcp45_TN10P
+TN90P_rcp45 <- frequency$thai_ensemble_rcp45_TN90P
+TX10P_rcp45 <- frequency$thai_ensemble_rcp45_TX10P
+TX90P_rcp45 <- frequency$thai_ensemble_rcp45_TX90P
+
+
+#### import frequency data model rcp85
+TN10P_rcp85 <- frequency$thai_ensemble_rcp85_TN10P
+TN90P_rcp85 <- frequency$thai_ensemble_rcp85_TN90P
+TX10P_rcp85 <- frequency$thai_ensemble_rcp85_TX10P
+TX90P_rcp85 <- frequency$thai_ensemble_rcp85_TX90P
+
+
+#### --- ตั้งชื่อ grid
+names(TN10P_rcp45) <- c("year", paste0("grid_",1:2730))
+names(TN90P_rcp45) <- c("year", paste0("grid_",1:2730))
+names(TX10P_rcp45) <- c("year", paste0("grid_",1:2730))
+names(TX90P_rcp45) <- c("year", paste0("grid_",1:2730))
+
+names(TN10P_rcp85) <- c("year", paste0("grid_",1:2730))
+names(TN90P_rcp85) <- c("year", paste0("grid_",1:2730))
+names(TX10P_rcp85) <- c("year", paste0("grid_",1:2730))
+names(TX90P_rcp85) <- c("year", paste0("grid_",1:2730))
+
+```
+
+
+รวมข้อมูลกับ grid data
+
+
+```{r}
+frequency_data45 <- thai_grid |> 
+    inner_join(TN10P_rcp45 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "TN10P_rcp45"), 
+               by = "grid_id") |> 
+    inner_join(TN90P_rcp45 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "TN90P_rcp45"), 
+               by = join_by("grid_id","year")) |> 
+    inner_join(TX10P_rcp45 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "TX10P_rcp45"), 
+               by = join_by("grid_id","year")) |>                
+    inner_join(TX90P_rcp45 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "TX90P_rcp45"), 
+               by = join_by("grid_id","year"))
+
+
+frequency_data85 <- thai_grid |> 
+    inner_join(TN10P_rcp85 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "TN10P_rcp85"), 
+               by = "grid_id") |> 
+    inner_join(TN90P_rcp85 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "TN90P_rcp85"), 
+               by = join_by("grid_id","year")) |> 
+    inner_join(TX10P_rcp85 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "TX10P_rcp85"), 
+               by = join_by("grid_id","year")) |>                
+    inner_join(TX90P_rcp85 |> 
+               pivot_longer(cols=-year, names_to = "grid_id", values_to = "TX90P_rcp85"), 
+               by = join_by("grid_id","year"))
+```
+
+
+## 5. คำนวณดัชนี anomaly สภาพอุณหภูมิสุดขั้ว
+
+
+- การคำนวณดัชนีปริมาณน้ำฝนสุดขั้วจะใช้ข้อมูลดัชนีอุณหภูมิสุดขั้วทั้ง 3 ด้านในช่วงปี 1970-2005 เป็นช่วงปีฐาน [Unicef (2022)](https://www.unicef.org/thailand/media/10361/file/Climate%20Change%20Impact%20Assessment%20-%20Full%20report.pdf)
+
+- ปีที่พิจารณาหรือปีที่จะคำนวณค่าผิดปกติได้แก่ช่วงปี 2017 - 2021 ที่เป็นช่วงปีที่มีคะแนน O-NET
+
+การคำนวณดัชนีความผิดปกติ (anomaly indices) อาจทำได้สองลักษณะ ลักษณะแรกคือ คำนวณแยกรายปีที่พิจารณา และลักษณะที่สองคือคำนวณเป็นค่าเฉลี่ยของช่วงปีที่พิจารณา
+
+การคำนวณดัชนี anomaly มีขั้นตอนดังนี้
+
+1. แปลงคะแนนดัชนีน้ำฝนสุดขั้วเป็นคะแนนมาตรฐาน โดยใช้ mean และ sd ในช่วงปีฐานกับช่วงที่พิจารณา
+
+2. คำนวณ anomaly index จากผลต่างระหว่างดัชนีปริมาณน้ำฝนสุดขั้วระหว่างปีพิจารณากับปีฐาน
+
+
+## 5.1 Anomaly indices ด้าน intensity
+
+```{r}
+### create max-min scaling function
+max_min <- function(x)
+    {
+    y<-(x-min(x, na.rm=T))/(max(x, na.rm=T)-min(x, na.rm=T))
+    }
+
+z_score <- function(x)
+    {
+    y<- (x-mean(x,na.rm = T))/sd(x, na.rm=T)
+    }
+
+ intensity_data45 |> 
+    filter(year %in% c(1970:2005, 2017:2021)) |> 
+    mutate_at(vars(starts_with("TX"), starts_with("TN"), starts_with("D")), ~z_score(.)) |> ## standardized ดัชนีเป็น Z-score
+    mutate(phase = case_when(
+            year <= 2005 ~ "baseline",
+            .default = as.character(year))) |> 
+    filter(grid_id == "grid_1026")
+```
+
+
+```{r}
+### ชุดข้อมูล intensity_anomaly
+
+intensity_anomaly45 <- intensity_data45 |> 
+    filter(year %in% c(1970:2005, 2017:2021)) |> 
+    mutate_at(vars(starts_with("TX"), starts_with("TN"), starts_with("D")), ~z_score(.)) |> ## standardized ดัชนีเป็น Z-score
+    mutate(phase = case_when(
+            year <= 2005 ~ "baseline",
+            .default = as.character(year))) |>
+    group_by(phase, grid_id, lon, lat) |> 
+    summarise(across(starts_with("TX")|starts_with("TN")| starts_with("D"), 
+                     ~mean(.), .names = "mean_{.col}")) |> 
+    ungroup() |>  
+    #mutate_at(vars(starts_with("mean")), ~ifelse(is.na(.)==T,0,.)) |> 
+    drop_na() |> 
+    ## กลับสเกลตัวแปร TNn, TXn เพื่อให้ทิศทางความเสี่ยงเป็นไปในทางเดียวกัน
+    mutate(across(contains("TNn")|contains("TXn"),  ~(-1)*.)) |> 
+    mutate(intensity_index = rowMeans(across(starts_with("mean")), na.rm = T)) |> 
+    select(-starts_with("mean")) |> 
+    pivot_wider(names_from = "phase", values_from = "intensity_index") |> 
+    mutate(
+           rcp45_anomaly2017 = `2017` - baseline,
+           rcp45_anomaly2018 = `2018` - baseline,
+           rcp45_anomaly2019 = `2019` - baseline,
+           rcp45_anomaly2020 = `2020` - baseline,
+           rcp45_anomaly2021 = `2021` - baseline
+           ) 
+
+intensity_anomaly85 <- intensity_data85 |> 
+     filter(year %in% c(1970:2005, 2017:2021)) |> 
+    mutate_at(vars(starts_with("TX"), starts_with("TN"), starts_with("D")), ~z_score(.)) |> ## standardized ดัชนีเป็น Z-score
+    mutate(phase = case_when(
+            year <= 2005 ~ "baseline",
+            .default = as.character(year))) |>
+    group_by(phase, grid_id, lon, lat) |> 
+    summarise(across(starts_with("TX")|starts_with("TN")| starts_with("D"), 
+                     ~mean(.), .names = "mean_{.col}")) |> 
+    ungroup() |>  
+    #mutate_at(vars(starts_with("mean")), ~ifelse(is.na(.)==T,0,.)) |> 
+    drop_na() |> 
+    ## กลับสเกลตัวแปร TNn, TXn เพื่อให้ทิศทางความเสี่ยงเป็นไปในทางเดียวกัน
+    mutate(across(contains("TNn")|contains("TXn"),  ~(-1)*.)) |> 
+    mutate(intensity_index = rowMeans(across(starts_with("mean")), na.rm = T)) |> 
+    select(-starts_with("mean")) |> 
+    pivot_wider(names_from = "phase", values_from = "intensity_index") |> 
+    mutate(
+           rcp85_anomaly2017 = `2017` - baseline,
+           rcp85_anomaly2018 = `2018` - baseline,
+           rcp85_anomaly2019 = `2019` - baseline,
+           rcp85_anomaly2020 = `2020` - baseline,
+           rcp85_anomaly2021 = `2021` - baseline
+           ) 
+
+
+
+
+
+## สำรวจความผิดปกติด้านปริมาณน้ำฝน rcp45
+intensity_anomaly45 |> 
+    pivot_longer(cols = contains("anomaly")) |> 
+    ggplot(aes(x = lon, y = lat)) +
+    geom_tile(aes(fill = value), col = "black") +
+    facet_wrap(~name) +
+    scale_fill_viridis_c(option = "B", limits=c(-3,3))+
+    labs(fill = "anomaly score")+
+    ggtitle("RCP45 Temperature Anomaly: Intensity")
+
+
+## สำรวจความผิดปกติด้านปริมาณน้ำฝน rcp85
+intensity_anomaly85 |> 
+    pivot_longer(cols = contains("anomaly")) |> 
+    ggplot(aes(x = lon, y = lat)) +
+    geom_tile(aes(fill = value), col = "black") +
+    facet_wrap(~name) +
+    scale_fill_viridis_c(option = "B", limits=c(-3,3))+
+    labs(fill = "anomaly score")+
+    ggtitle("RCP85 Precipitation Anomaly: Intensity")
+```
+
+
+## 5.2 Anomaly ด้าน duration
+
+```{r}
+## 
+
+duration_anomaly45 <- duration_data45 |> 
+    filter(year <= 2021) |> 
+    mutate_at(vars(starts_with("CSDI") | starts_with("WDSI")), ~z_score(.)) |> 
+    filter(year %in% c(1970:2005, 2017:2021)) |> 
+    mutate(phase = case_when(
+            year <= 2005 ~ "baseline",
+            .default = as.character(year))) |>
+    group_by(phase, grid_id, lon, lat) |> 
+    summarise(across(starts_with("C")|starts_with("W"), 
+                     ~mean(.), .names = "mean_{.col}")) |> 
+    ungroup() |> 
+    drop_na() |> 
+    mutate(duration_index = rowMeans(across(starts_with("mean")), na.rm = T)) |>
+    select(-starts_with("mean")) |> 
+    pivot_wider(names_from = "phase", values_from = "duration_index") |> 
+    mutate(
+           rcp45_anomaly2017 = `2017` - baseline,
+           rcp45_anomaly2018 = `2018` - baseline,
+           rcp45_anomaly2019 = `2019` - baseline,
+           rcp45_anomaly2020 = `2020` - baseline,
+           rcp45_anomaly2021 = `2021` - baseline
+           )
+
+duration_anomaly85 <- duration_data85 |> 
+   filter(year <= 2021) |> 
+    mutate_at(vars(starts_with("CSDI") | starts_with("WDSI")), ~z_score(.)) |> 
+    filter(year %in% c(1970:2005, 2017:2021)) |> 
+    mutate(phase = case_when(
+            year <= 2005 ~ "baseline",
+            .default = as.character(year))) |>
+    group_by(phase, grid_id, lon, lat) |> 
+    summarise(across(starts_with("C")|starts_with("W"), 
+                     ~mean(.), .names = "mean_{.col}")) |> 
+    ungroup() |> 
+    drop_na() |> 
+    mutate(duration_index = rowMeans(across(starts_with("mean")), na.rm = T)) |>
+    select(-starts_with("mean")) |> 
+    pivot_wider(names_from = "phase", values_from = "duration_index") |> 
+    mutate(
+           rcp85_anomaly2017 = `2017` - baseline,
+           rcp85_anomaly2018 = `2018` - baseline,
+           rcp85_anomaly2019 = `2019` - baseline,
+           rcp85_anomaly2020 = `2020` - baseline,
+           rcp85_anomaly2021 = `2021` - baseline
+           )
+
+
+## สำรวจความผิดปกติด้านปริมาณน้ำฝน
+duration_anomaly45 |> 
+    pivot_longer(cols = contains("anomaly")) |> 
+    ggplot(aes(x = lon, y = lat)) +
+    geom_tile(aes(fill = value), col = "black") +
+    facet_wrap(~name) +
+    scale_fill_gradientn(
+    colors = inferno(100),
+    values = scales::rescale(c(-3, 0, 2)),
+    limits = c(-2.5, 2.5), breaks = c(-3,0,2))+
+    labs(fill = "anomaly score")+
+    labs(fill = "anomaly score")+
+    ggtitle("Temperature Anomaly: Duration")
+
+## สำรวจความผิดปกติด้านปริมาณน้ำฝน
+duration_anomaly85 |> 
+    pivot_longer(cols = contains("anomaly")) |> 
+    ggplot(aes(x = lon, y = lat)) +
+    geom_tile(aes(fill = value), col = "black") +
+    facet_wrap(~name) +
+    scale_fill_gradientn(
+    colors = inferno(100),
+    values = scales::rescale(c(-3, 0, 2)),
+    limits = c(-2.5, 2.5), breaks = c(-3,0,2))+
+    labs(fill = "anomaly score")+
+    ggtitle("Temperature Anomaly: Duration")
+```
+
+
+
+## 5.3 Anomaly ด้าน frequency
+
+ร้อยละของวันที่อุณหภูมิผิดปกติสุดขั้ว
+
+```{r}
+frequency_anomaly45 <- frequency_data45 |> 
+    filter(year <= 2021) |>
+    mutate_at(vars(starts_with("r")), ~z_score(.)) |> 
+    filter(year %in% c(1970:2005, 2017:2021)) |> 
+    mutate(phase = case_when(
+            year <= 2005 ~ "baseline",
+            .default = as.character(year))) |>
+    group_by(phase, grid_id, lon, lat) |> 
+    summarise(across(starts_with("TN")|starts_with("TX"),
+                    ~mean(.), .names = "mean_{.col}")) |> 
+    ungroup() |> 
+    drop_na() |> 
+    mutate(frequency_index = rowMeans(across(starts_with("mean")))) |> 
+    select(-starts_with("mean")) |> 
+    pivot_wider(names_from = "phase", values_from = "frequency_index") |> 
+    mutate(
+           rcp45_anomaly2017 = `2017` - baseline,
+           rcp45_anomaly2018 = `2018` - baseline,
+           rcp45_anomaly2019 = `2019` - baseline,
+           rcp45_anomaly2020 = `2020` - baseline,
+           rcp45_anomaly2021 = `2021` - baseline
+           )
+
+frequency_anomaly85 <- frequency_data85 |> 
+    filter(year <= 2021) |>
+    mutate_at(vars(starts_with("r")), ~z_score(.)) |> 
+    filter(year %in% c(1970:2005, 2017:2021)) |> 
+    mutate(phase = case_when(
+            year <= 2005 ~ "baseline",
+            .default = as.character(year))) |>
+    group_by(phase, grid_id, lon, lat) |> 
+    summarise(across(starts_with("TN")|starts_with("TX"),
+                    ~mean(.), .names = "mean_{.col}")) |> 
+    ungroup() |> 
+    drop_na() |> 
+    mutate(frequency_index = rowMeans(across(starts_with("mean")))) |> 
+    select(-starts_with("mean")) |> 
+    pivot_wider(names_from = "phase", values_from = "frequency_index") |> 
+    mutate(
+           rcp85_anomaly2017 = `2017` - baseline,
+           rcp85_anomaly2018 = `2018` - baseline,
+           rcp85_anomaly2019 = `2019` - baseline,
+           rcp85_anomaly2020 = `2020` - baseline,
+           rcp85_anomaly2021 = `2021` - baseline
+           )
+
+## สำรวจความผิดปกติด้านปริมาณน้ำฝน
+frequency_anomaly45 |> 
+    pivot_longer(cols = contains("anomaly")) |> 
+    ggplot(aes(x = lon, y = lat)) +
+    geom_tile(aes(fill = value), col = "black") +
+    facet_wrap(~name) +
+    scale_fill_gradientn(
+    colors = inferno(100),
+    values = scales::rescale(c(0, 3, 15)),
+    limits = c(0, 15), breaks = c(0,3,6,9,15))+
+    labs(fill = "anomaly score")+
+    ggtitle("Temperature Anomaly: Frequency")
+
+## สำรวจความผิดปกติด้านปริมาณน้ำฝน
+frequency_anomaly85 |> 
+    pivot_longer(cols = contains("anomaly")) |> 
+    ggplot(aes(x = lon, y = lat)) +
+    geom_tile(aes(fill = value), col = "black") +
+    facet_wrap(~name) +
+    scale_fill_gradientn(
+    colors = inferno(100),
+    values = scales::rescale(c(0, 3, 27)),
+    limits = c(0, 27), breaks = c(0,3,6,9,27))+
+    labs(fill = "anomaly score")+
+    ggtitle("Temperature Anomaly: Frequency")
+
+
+```
+
+
+## 5.4 รวมดัชนีความผิดปกติสภาพภูมิอากาศด้านอุณหภูมิสุดขั้ว
+
+
+```{r}
+### --- rcp45
+intensity_anomaly45 <- intensity_anomaly45 |> 
+    select(grid_id, lon, lat, contains("anomaly")) |> 
+    rename_with(~paste0("intensity_",.), .cols = contains("anomaly"))
+
+duration_anomaly45 <- duration_anomaly45 |> 
+    select(grid_id, lon, lat, contains("anomaly")) |> 
+    rename_with(~paste0("duration_",.), .cols = contains("anomaly"))
+
+frequency_anomaly45 <- frequency_anomaly45 |> 
+    select(grid_id, lon, lat, contains("anomaly")) |> 
+    rename_with(~paste0("frequency_",.), .cols = contains("anomaly"))
+
+## ดัชนีความผิดปกติแยกด้าน รายพื้นที่รายปี
+temperature_anomaly45 <-  intensity_anomaly45 |> 
+    inner_join(duration_anomaly45, by = join_by(grid_id, lon, lat)) |> 
+    inner_join(frequency_anomaly45, by = join_by(grid_id, lon, lat)) |> 
+    pivot_longer(4:18, values_to = "rcp45_anomaly_value") |> 
+    separate(col = "name", into = c("indicator","year"), sep = "_anomaly")
+
+temperature_anomaly45 <- temperature_anomaly45 |> 
+    rename(temperature_anomaly = 6)
+
+### --- rcp85
+intensity_anomaly85 <- intensity_anomaly85 |> 
+    select(grid_id, lon, lat, contains("anomaly")) |> 
+    rename_with(~paste0("intensity_",.), .cols = contains("anomaly"))
+
+duration_anomaly85 <- duration_anomaly85 |> 
+    select(grid_id, lon, lat, contains("anomaly")) |> 
+    rename_with(~paste0("duration_",.), .cols = contains("anomaly"))
+
+frequency_anomaly85 <- frequency_anomaly85 |> 
+    select(grid_id, lon, lat, contains("anomaly")) |> 
+    rename_with(~paste0("frequency_",.), .cols = contains("anomaly"))
+
+## ดัชนีความผิดปกติแยกด้าน รายพื้นที่รายปี
+temperature_anomaly85 <-  intensity_anomaly85 |> 
+    inner_join(duration_anomaly85, by = join_by(grid_id, lon, lat)) |> 
+    inner_join(frequency_anomaly85, by = join_by(grid_id, lon, lat)) |> 
+    pivot_longer(4:18, values_to = "rcp85_anomaly_value") |> 
+    separate(col = "name", into = c("indicator","year"), sep = "_anomaly")
+
+temperature_anomaly85 <- temperature_anomaly85 |> 
+    rename(temperature_anomaly = 6)
+
+
+## ชุดข้อมูลแบบยาวบันทึก anomaly สองโมเดล
+temperature_anomaly <- bind_rows(temperature_anomaly45, temperature_anomaly85)
+```
+
+
+# 6. สรุปชุดข้อมูลสภาพภูมิอากาศสุดขั้ว
+
+ชุดข้อมูลสภาพภูมิอากาศสุดขั้วที่ preprocess แล้วมี 2 ชุด ได้แก่
+
+- `precipitation_anomaly`
+
+- `temperature_anomaly`
+
+
+ลองสำรวจข้อมูลทั้งสอง
+
+```{r}
+precipitation_anomaly |> 
+    group_by(indicator) |> 
+    summarise_at(vars(precipitaion_anomaly),
+                list(mean = mean,
+                     sd = sd,
+                     min = min,
+                     med = median,
+                     max = max))
+
+temperature_anomaly |> 
+    group_by(indicator) |> 
+     summarise_at(vars(temperature_anomaly),
+                list(mean = mean,
+                     sd = sd,
+                     min = min,
+                     med = median,
+                     max = max))
+```
+
+
+
+

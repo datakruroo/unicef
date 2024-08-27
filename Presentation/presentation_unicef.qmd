@@ -1,0 +1,61 @@
+---
+title: "Education data - Climate Change Risk Mapping Thailand"
+author: "ผศ.ดร.สิวะโชติ ศรีสุทธิยากร และคณะ"
+institute: "ภาควิชาวิจัยและจิตวิทยาการศึกษา <br> คณะครุศาสตร์ จุฬาลงกรณ์มหาวิทยาลัย"
+date: 2024-08-24
+format:
+  revealjs:
+    slide-number: c/t
+    footer: ""
+    logo: https://github.com/ssiwacho/picture/blob/main/datakruroo.png?raw=true
+    theme: theme.scss
+    css: my_css.css
+    scrollable: true
+    transition: fade
+    background-transition: fade
+    highlight-style: github
+    title-slide-attributes:
+      data-background-image: img/datavis.png
+      data-background-opacity: 20%
+      data-background-size: contain
+code-link: true
+execute:
+  echo: true
+  freeze: auto
+  progress: true
+
+---
+
+
+## Outline
+
+- Research Objective
+
+- Scope of Work and Methodologoes
+
+- Results
+
+- Conclusion
+
+
+## Research Objectives {.smaller}
+
+1. Explore and develop a **methodological note** to identify relevant education metrics to highlight the actual or potential, direct or indirect, adverse effects of climate change and environmental degradation on children’s education participation and learning.
+The education-specific factors to explore may consist of following key data points: 
+
+
+2. Develop/revise risk maps of climate change on K-12 education in Thailand to include relevant education indicators to better reflect the vulnerability of education systems - schools and students - at the sub-national level.
+
+3. Identify characteristics of schools/provinces/areas and children where education is exposed to considerable risks of climate hazards inter alia by region, urban/rural, socio-economic status, disability, gender, age, school hardship location, etc.
+
+```{r echo = F}
+library(tidyverse)
+library(tidymodels)
+##install.packages("textrecipes")
+##devtools::install_github("datakruroo/thaitextrecipe")
+library(thaitextrecipe)
+library(readxl)
+library(plotly)
+library(grid)
+library(patchwork)
+```

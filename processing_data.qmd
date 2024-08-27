@@ -1,0 +1,999 @@
+---
+title: "non_climate_data_process"
+format: html
+editor: visual
+---
+
+```{r importing essential library}
+library(tidyverse)
+library(readxl)
+```
+
+## 1. Exposure
+
+ข้อมูลด้านนี้มีจำนวน 4 ตัวชี้วัด จำแนกเป็นระดับโรงเรียนและเขตพื้นที่การศึกษา
+
+### 1.1 ระยะทางและความเป็นโรงเรียนทุรกันดาร
+
+มีจำนวน 2 ตัวชี้วัด ได้แก่
+
+- ระยะทางระหว่างโรงเรียนกับอำเภอเมือง
+
+- ความเป็นโรงเรียนพื้นที่ห่างไกล ทุรกันดาร
+
+
+#### จัดการข้อมูลภูมิหลังโรงเรียนและระยะทางจากโรงเรียนไปยังอำเภอ
+
+```{r importing data}
+### ข้อมูลพื้นฐานโรงเรียน และระยะทางระหว่างโรงเรียนกับอำเภอเมือง
+sch_bg <- read_excel("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./ข้อมูลดิบพื้นฐานโรงเรียน สพฐ..xlsx")
+
+sch_dist <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./Schooldistance.csv")
+```
+
+
+จัดกระทำข้อมูล
+
+```{r}
+### ข้อมูลพื้นฐานโรงเรียน สพฐ.
+sch_data_bg <- sch_bg %>% 
+  select(areacode, 
+         `กระทรวง`,
+         `ชื่อโรงเรียน`,
+         `ชื่ออำเภอ`,
+         `ชื่อจังหวัด`,`ชื่อเขต`)  %>% 
+  rename(area_code = 1,
+         school_code = 2,
+         school_name = 3,
+         amphor = 4,
+         province = 5,
+         affiliation = 6) %>% 
+  mutate(school_code = as.numeric(school_code)) |> 
+  filter(affiliation != "สำนักบริหารงานการศึกษาพิเศษ")
+
+### ข้อมูลรหัสเขตพื้นที่การศึกษา
+sch_data_areacode <- sch_data_bg |> 
+  select(area_code, affiliation) |> 
+  group_by(area_code,affiliation) |> count()
+```
+
+
+```{r}
+### ข้อมูลระยะทางระหว่างโรงเรียนกับอำเภอเมือง
+sch_data_dist <- sch_dist %>% 
+  select(`รหัส.10.หลัก`,
+         dist.from.disrict) %>% 
+  rename(school_code = 1,
+         distance_from_district = 2) 
+
+sch_data_dist |> 
+  mutate(distance_from_district = as.numeric(distance_from_district)) |> 
+  summary()
+
+sch_data_dist <- sch_data_dist |> 
+  mutate_at(vars("school_code", "distance_from_district"), as.numeric) |> 
+  #mutate(hard_to_reach = ifelse(is.na(hard_to_reach) == T, "ไม่ยุ่งยาก",
+  #                              hard_to_reach)) %>% 
+  mutate(distance_from_district = ifelse(distance_from_district <0, 13.3, 
+                                         distance_from_district)) %>% 
+  mutate(distance_from_district = ifelse(school_code == "1010720094", 3.2,
+                                         distance_from_district)) %>% 
+  mutate(distance_from_district = ifelse(school_code == "1010720101", 4.2,
+                                         distance_from_district)) %>% 
+  mutate(distance_from_district = ifelse(school_code == "1012230164", 3.2,
+                                         distance_from_district)) %>% 
+  mutate(distance_from_district = ifelse(school_code == "1010720007", 1.3,
+                                         distance_from_district)) %>%   
+  mutate(distance_from_district = ifelse(school_code == "1010720033", 2.0,
+                                         distance_from_district)) %>%  
+  mutate(distance_from_district = ifelse(school_code == "1010720104", 4.7,
+                                         distance_from_district)) %>%  
+  mutate(distance_from_district = ifelse(school_code == "1010720114", 4.5,
+                                         distance_from_district)) |> 
+  mutate(distance_from_district = ifelse(school_code == "1017610009", 3.7,
+                                         distance_from_district)) |>
+  mutate(distance_from_district = ifelse(school_code == "1042520235", 1.0,
+                                         distance_from_district)) |> 
+  mutate(distance_from_district = ifelse(school_code == "1042520235", 1.0,
+                                         distance_from_district)) |> 
+  mutate(distance_from_district = ifelse(school_code %in% c(1024070064, 1035430129, 1040050073, 1066350136, 1092140338), 0.5, distance_from_district))   |>
+  mutate(distance_from_district = ifelse(school_code == "1047540247", 4.2, distance_from_district)) |> 
+  mutate(distance_from_district = ifelse(school_code %in% c(1050131016, 1049730150), 0.41, distance_from_district)) |>
+  mutate(distance_from_district = ifelse(school_code %in% c(1050130290), 26.3, distance_from_district)) |>
+  mutate(distance_from_district = ifelse(school_code %in% c(1050130349), 80.8, distance_from_district)) |> 
+  mutate(distance_from_district = ifelse(school_code %in% c(1080210063), 23.3, distance_from_district)) |> 
+  mutate(distance_from_district = ifelse(school_code %in% c(1054390067), 0.35, distance_from_district)) |> 
+  mutate(distance_from_district = ifelse(school_code %in% c(1076370270), 55, distance_from_district)) |> 
+  mutate(distance_from_district = ifelse(school_code %in% c(1019600252), 4.0, distance_from_district)) |>                        
+  mutate(distance_from_district = ifelse(school_code %in% c(1050130126), 61.7, distance_from_district)) |> 
+  mutate(distance_from_district = ifelse(school_code %in% c(1050130343), 42.5, distance_from_district)) |> 
+  mutate(distance_from_district = ifelse(school_code %in% c(1050130345), 64, distance_from_district))
+  
+sch_data_dist <- sch_data_dist |> 
+  mutate(distance_from_district = ifelse(school_code %in% c(1050131062), 85, distance_from_district)) |> 
+  mutate(distance_from_district = ifelse(school_code %in% c(1053690112), 46.6, distance_from_district)) |>  
+  mutate(distance_from_district = ifelse(school_code %in% c(1054390152), 50, distance_from_district)) |>  
+  mutate(distance_from_district = ifelse(school_code %in% c(1057120005), 52, distance_from_district)) |>    
+  mutate(distance_from_district = ifelse(school_code %in% c(1057120011), 54, distance_from_district)) |>     
+  mutate(distance_from_district = ifelse(school_code %in% c(1058420107), 130, distance_from_district)) |>   
+  mutate(distance_from_district = ifelse(school_code %in% c(1058420125), 65.3, distance_from_district)) |>   
+  mutate(distance_from_district = ifelse(school_code %in% c(1058420077), 71, distance_from_district)) |>   
+  mutate(distance_from_district = ifelse(school_code %in% c(1058420077), 34, distance_from_district)) |>    
+  mutate(distance_from_district = ifelse(school_code %in% c(1058420040), 26.6, distance_from_district)) |>  
+  mutate(distance_from_district = ifelse(school_code %in% c(1058420167), 70, distance_from_district)) |>  
+  mutate(distance_from_district = ifelse(school_code %in% c(1058420168), 66, distance_from_district)) |>  
+  mutate(distance_from_district = ifelse(school_code %in% c(1058420168), 66, distance_from_district)) |>  
+  mutate(distance_from_district = ifelse(school_code %in% c(1058420322), 36, distance_from_district)) |>  
+  mutate(distance_from_district = ifelse(school_code %in% c(1062040128), 62, distance_from_district)) |>  
+  mutate(distance_from_district = ifelse(school_code %in% c(1062040128), 62, distance_from_district)) |>  
+  mutate(distance_from_district = ifelse(school_code %in% c(1063160183), 43.1, distance_from_district)) |>  
+  mutate(distance_from_district = ifelse(school_code %in% c(1071020088), 69.2, distance_from_district)) |> 
+  mutate(distance_from_district = ifelse(school_code %in% c(1090550074), 2.7, distance_from_district))
+
+
+
+sch_data_dist |> summary()       
+sch_data_dist |> filter(distance_from_district > 50 , distance_from_district <=100) |> pull(school_code) ->temp
+sch_data_bg |> filter(school_code %in% temp) |> data.frame()
+sch_data_dist |> 
+  ggplot(aes(x=distance_from_district))+
+  geom_histogram(col = "white")
+
+### ข้อมูลระยะทางระหว่างโรงเรียนกับอำเภอเมืองรายโรงเรียน
+sch_data <- left_join(sch_data_bg , sch_data_dist, by = "school_code")
+```
+
+
+#### จัดการข้อมูลความเป็นโรงเรียนพืนที่ห่างไกลทุรกันดาร
+
+ข้อมูลโรงเรียนทุรกันดารใช้ข้อมูลจากบัญชีรายชื่อสถานศึกษาที่ตั้งในพื้นที่ลักษณะพิเศษ (พื้นที่สูงในถิ่นทุรกันดาร) แนบท้ายประกาศสํานักงานคณะกรรมการการศึกษาขั้นพื้นฐาน ประกาศ ณ วันที่ 10 สิงหาคม พ.ศ. 2565
+
+
+```{r}
+sch_hard <- read_excel("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/schools_info_all_2.xlsx")
+glimpse(sch_hard)
+sch_hard <- sch_hard %>% 
+  rename(school_code = 2,
+        type_of_hard = 7,
+         hard_to_reach = 8) %>% 
+  select(school_code, type_of_hard,hard_to_reach) %>% 
+  mutate(school_code = as.numeric(school_code))
+
+sch_hard %>% head()
+sch_data_joined <- sch_data %>% left_join(sch_hard, by  = "school_code") 
+sch_data_joined |> count(type_of_hard)
+sch_data_joined |> count(hard_to_reach)
+#### --- เขียนถึงตรงนี้ !!!
+sch_data_joined <- sch_data_joined |> 
+  mutate(hard_to_reach = ifelse(is.na(hard_to_reach)==T,"ไม่ยุ่งยาก",hard_to_reach)) |> 
+  mutate(type_of_hard = ifelse(is.na(type_of_hard)==T,"none",type_of_hard)) |> 
+  mutate_at(vars(hard_to_reach, type_of_hard), factor)
+
+glimpse(sch_data)
+
+sch_data_amphor <- sch_data_joined |> 
+  group_by(province, amphor, type_of_hard, hard_to_reach) |> 
+  summarise(avg_dist_from_district = mean(distance_from_district, na.rm = T),
+            sd_dist_from_district = sd(distance_from_district, na.rm = T),
+            n=n()) |> 
+  arrange(amphor, avg_dist_from_district)
+```
+
+
+### 1.2  การเดินทางมาโรงเรียนของนักเรียน
+
+http://www.bopp.go.th/?page_id=3544
+
+- ข้อมูลเกี่ยวกับการเดินทางมาโรงเรียนของนักเรียนจะใช้ข้อมูลในปีการศึกษา 2564 - 2566 โดยจะเป็นข้อมูลระดับเขตพื้นที่การศึกษา 
+
+- ใช้ข้อมูลจำนวนนักเรียนรายเขตพื้นที่การศึกษา ปีการศึกษา 2564 - 2566 ด้วยเพื่อนำมาใช้เป็น total ในการหาร้อยละ
+
+#### ปีการศึกษา 2566 
+```{r}
+### Importing data
+#### 1 ---
+student_to_sch66 <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./การเดินทางมาโรงเรียน/เดินทาง_2566.csv")
+
+student_total66 <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./จำนวนนักเรียนและห้องเรียนทั้งหมด/จำนวนนักเรียน_ห้องเรียน2566.csv")
+  
+student_to_sch66 <- student_to_sch66 |> 
+  filter(is.na(`ชื่อเขต`)==F) |> 
+  rename(area_name = `ชื่อเขต`,
+          type = `ประเภท`) |> 
+  filter(area_name != "สำนักบริหารงานการศึกษาพิเศษ") |> 
+  select(area_name, type, `รวมประถม`, `รวมม.ต้น`,`รวมม.ปลายและเทียบเท่า`) |> 
+  rename(primary = 3,
+         second1 = 4,
+         second2 = 5) |>
+  mutate(second = second1+second2) |> 
+  select(-second1, -second2) |> 
+  pivot_longer(cols = 3:4, names_to = "student_level", values_to = "num_student") |> 
+  mutate(student_level = ifelse(student_level == "primary", "ประถมศึกษา", "มัธยมศึกษา")) |> 
+  mutate(year = 2566, .before = "area_name") |> 
+  filter(type %in% c("นักเรียนอยู่ห่างเกิน 3 กม.",
+                     "เดินเท้า")) |> 
+  mutate(area_name = str_trim(area_name))
+
+
+
+student_total66 <- student_total66 |> 
+  select(-1) |> 
+  rename(area_name = 1,
+        gender = 2,
+        primary = 3,
+        second1 = 4,
+        second2 = 5) |> 
+  fill(area_name, .direction = "down") |> 
+  mutate(area_name = str_trim(area_name)) |> 
+  mutate(second = second1+second2) |> 
+  select(-second1, -second2, -Total) |> 
+  filter(!gender %in% c("ชาย","หญิง","ห้อง")) |> 
+  select(-gender) |> 
+  pivot_longer(cols = 2:3, names_to = "student_level", values_to = "total") |> 
+  mutate(student_level = ifelse(student_level == "primary", "ประถมศึกษา", "มัธยมศึกษา")) |> 
+  #mutate(area_name = str_remove(area_name, "\\s+(?=เขต)")) |> 
+  mutate(year = 2566, .before = "area_name") |> 
+  filter(total != 0)
+
+
+student_to_sch66 |> summary()
+
+student_total66 |> summary()
+
+student_travel_tosch66 <- student_total66 |> 
+  left_join(student_to_sch66, by = join_by("area_name","student_level")) |> 
+  select(-year.y) |> 
+  rename(year = year.x,
+          total_student = total) |> 
+  select(year, area_name, student_level, type, total_student, num_student) |> 
+  mutate(percent_student = num_student*100/total_student)
+  
+student_travel_tosch66 |> summary()
+```
+
+#### ปีการศึกษา 2565
+
+```{r}
+student_to_sch65 <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./การเดินทางมาโรงเรียน/เดินทาง_2565.csv")
+
+student_total65 <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./จำนวนนักเรียนและห้องเรียนทั้งหมด/จำนวนนักเรียน_ห้องเรียน2565.csv")
+
+student_to_sch65 <- student_to_sch65 |> 
+ # filter(is.na(`ชื่อเขต`)==F) |> 
+  rename(area_name = `ชื่อเขต`,
+          type = `ประเภท`) |> 
+  filter(area_name != "สำนักบริหารงานการศึกษาพิเศษ") |> 
+  select(area_name, type, `รวมประถม`, `รวม ม.ต้น`,`รวม ม.ปลายและเทียบเท่า`) |> 
+  rename(primary = 3,
+         second1 = 4,
+         second2 = 5) |>
+  mutate(second = second1+second2) |> 
+  select(-second1, -second2) |> 
+  pivot_longer(cols = 3:4, names_to = "student_level", values_to = "num_student") |> 
+  mutate(student_level = ifelse(student_level == "primary", "ประถมศึกษา", "มัธยมศึกษา")) |> 
+  mutate(year = 2565, .before = "area_name") |> 
+  filter(type %in% c("นักเรียนอยู่ห่างเกิน 3 กม.",
+                     "เดินเท้า")) |> 
+  mutate(area_name = str_trim(area_name)) 
+
+student_to_sch65|> filter(str_detect(area_name,"ตรัง"))
+
+student_total65 <- student_total65 |> 
+  select(-1) |> 
+  rename(area_name = 1,
+        gender = 2,
+        primary = 3,
+        second1 = 4,
+        second2 = 5,
+        Total = 6) |> 
+  fill(area_name, .direction = "down") |> 
+  mutate(area_name = str_trim(area_name)) |> 
+  mutate(second = second1+second2) |> 
+  select(-second1, -second2, -Total) |> 
+  filter(!gender %in% c("ชาย","หญิง","ห้อง")) |> 
+  select(-gender) |> 
+  pivot_longer(cols = 2:3, names_to = "student_level", values_to = "total") |> 
+  mutate(student_level = ifelse(student_level == "primary", "ประถมศึกษา", "มัธยมศึกษา"))  |> 
+  filter(total != 0) |> 
+  mutate(area_name = str_trim(area_name)) 
+
+  #|> 
+  #mutate(area_name = str_remove(area_name, "\\s+(?=เขต)"))
+
+student_travel_tosch65 <- student_total65 |> 
+  left_join(student_to_sch65, by = join_by("area_name","student_level")) |> 
+  rename(total_student = total) |> 
+  select(year, area_name, student_level, type, total_student, num_student) |> 
+  mutate(percent_student = num_student*100/total_student)
+
+student_travel_tosch65 |> summary()
+```
+
+
+#### ปีการศึกษา 2564
+
+```{r}
+student_to_sch64 <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./การเดินทางมาโรงเรียน/เดินทาง_2564.csv")
+
+student_total64 <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./จำนวนนักเรียนและห้องเรียนทั้งหมด/จำนวนนักเรียน_ห้องเรียน2564.csv")
+
+
+
+student_to_sch64 <- student_to_sch64 |> 
+ # filter(is.na(`ชื่อเขต`)==F) |> 
+  rename(area_name = `ชื่อเขต`,
+          type = `ประเภท`) |> 
+  select(-1) |> 
+  fill(area_name, .direction = "down") |> 
+  filter(area_name != "สำนักบริหารงานการศึกษาพิเศษ") |> 
+  select(area_name, type, `รวมประถม`, `รวมมัธยม`,`รวม`) |> 
+  rename(primary = 3,
+         second = 4,
+         total = 5) |>
+  select(-total) |> 
+  pivot_longer(cols = 3:4, names_to = "student_level", values_to = "num_student") |> 
+  mutate(student_level = ifelse(student_level == "primary", "ประถมศึกษา", "มัธยมศึกษา")) |> 
+  mutate(year = 2564, .before = "area_name") |> 
+  filter(type %in% c("รวมทั้งสิ้น",
+                     "เดินเท้า")) |> 
+  mutate(type = ifelse(type == "รวมทั้งสิ้น","นักเรียนอยู่ห่างเกิน 3 กม.", type)) |> 
+  mutate(area_name = str_trim(area_name)) |> 
+  mutate(area_name = str_replace(area_name,"ตรัง กระบี่","ตรัง-กระบี่"))
+
+
+student_total64 <- student_total64 |> 
+  select(-1) |> 
+  rename(area_name = 1,
+        gender = 2,
+        primary = 3,
+        second1 = 4,
+        second2 = 5,
+        Total = 6) |> 
+  fill(area_name, .direction = "down") |> 
+  mutate(area_name = str_trim(area_name)) |> 
+  mutate(second = second1+second2) |> 
+  select(-second1, -second2, -Total) |> 
+  filter(!gender %in% c("ชาย","หญิง","ห้อง")) |> 
+  select(-gender) |> 
+  pivot_longer(cols = 2:3, names_to = "student_level", values_to = "total") |> 
+  mutate(student_level = ifelse(student_level == "primary", "ประถมศึกษา", "มัธยมศึกษา")) |> 
+  filter(total != 0) |> 
+  mutate(area_name = str_trim(area_name)) |> 
+  mutate(area_name = str_replace(area_name,"ตรัง กระบี่","ตรัง-กระบี่"))
+
+
+
+student_travel_tosch64 <- student_total64 |> 
+  left_join(student_to_sch64, by = join_by("area_name","student_level")) |> 
+  rename(total_student = total) |> 
+  select(year, area_name, student_level, type, total_student, num_student) |> 
+  mutate(percent_student = num_student*100/total_student)
+
+student_travel_tosch64 |> filter(is.na(num_student)== T)
+
+```
+
+#### รวมข้อมูลการเดินทางของนักเรียนทั้ง 3 ปีเข้าด้วยกัน
+
+```{r}
+student_to_sch_data <- 
+  bind_rows(student_travel_tosch66, student_travel_tosch65, student_travel_tosch64)
+
+student_to_sch_data |> summary()
+
+
+student_to_sch_data <- student_to_sch_data |> 
+  mutate(province = area_name, .after = "year") |> 
+  mutate(province = str_remove(province, "สพป\\.")) |>
+  mutate(province = str_remove(province, "สพม\\.")) |> 
+  mutate(province = str_remove(province, "เขต\\s*\\d+")) |> 
+  mutate(province = str_trim(province)) 
+
+student_to_sch_data |> 
+  select(year, area_name, student_level, type, percent_student)
+```
+
+
+## 2. Sensitivity
+
+### 2.1 Onet
+
+ข้อมูลที่ใช้คือ Onet ปี 59-64
+
+```{r}
+excel_sheets("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/learning loss/LearningLossProject/dataset/SCORE_BY_SCHOOL_2560-2564.xlsx")
+
+onet_p6 <- read_excel("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/learning loss/LearningLossProject/dataset/SCORE_BY_SCHOOL_2560-2564.xlsx",
+                      sheet = "P6_SCORE_BY_SCHOOL_60_64")
+
+onet_m3 <- read_excel("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/learning loss/LearningLossProject/dataset/SCORE_BY_SCHOOL_2560-2564.xlsx",
+                      sheet = "M3_SCORE_BY_SCHOOL_60_64")
+
+onet_m6 <- read_excel("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/learning loss/LearningLossProject/dataset/SCORE_BY_SCHOOL_2560-2564.xlsx",
+                      sheet = "M6_SCORE_BY_SCHOOL_60_64")
+
+p6 <- onet_p6 %>% 
+  rename(year =1,
+         student_level = 3,
+         school_code = 4,
+         school_name = 5,
+         amphor = `ชื่ออำเภอ`,
+         province = `ชื่อจังหวัด`,
+         affilication1 = 7,
+         affilication2 = `ชื่อสังกัด`,
+         location = `ในเมือง/นอกเมือง`,
+         subject = `ชื่อวิชา`,
+         mean_score = `ค่าเฉลี่ย`,
+         median_score = `มัธยฐาน`) %>% 
+  select(year, student_level, school_code, school_name, amphor, province, affilication1, affilication2, location, subject, mean_score, median_score) |> 
+  filter(affilication2 == "สำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน")
+  
+
+m3 <- onet_m3 %>% 
+  rename(year =1,
+         student_level = 3,
+         school_code = 4,
+         school_name = 5,
+         amphor = `ชื่ออำเภอ`,
+         province = `ชื่อจังหวัด`,
+         affilication1 = 7,
+         affilication2 = `ชื่อสังกัด`,
+         location = `ในเมือง/นอกเมือง`,
+         subject = `ชื่อวิชา`,
+         mean_score = `ค่าเฉลี่ย`,
+         median_score = `มัธยฐาน`) %>% 
+  select(year, student_level, school_code, school_name, amphor, province, affilication1, affilication2, location, subject, mean_score, median_score) |> 
+  filter(affilication2 == "สำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน")
+
+m6 <- onet_m6 %>% 
+  rename(year =1,
+         student_level = 3,
+         school_code = 4,
+         school_name = 5,
+         amphor = `ชื่ออำเภอ`,
+         province = `ชื่อจังหวัด`,
+         affilication1 = 7,
+         affilication2 = `ชื่อสังกัด`,
+         location = `ในเมือง/นอกเมือง`,
+         subject = `ชื่อวิชา`,
+         mean_score = `ค่าเฉลี่ย`,
+         median_score = `มัธยฐาน`) %>% 
+  select(year, student_level, school_code, school_name, amphor, province, affilication1, affilication2, location, subject, mean_score, median_score) %>% 
+  mutate_at(vars("year", "school_code", "mean_score", "median_score"), as.numeric) |> 
+  filter(affilication2 == "สำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน")
+```
+
+
+```{r}
+### สร้างฟังก์ชันสำหรับทำ PCA และสกัดองค์ประกอบแรกออกมา
+my_pca <- function(data) {
+  pca_result <- prcomp(data %>% select(math, thai, eng, sci), scale. = TRUE)
+  first_component <- pca_result$x[, 1]
+  return(first_component)
+}
+#### ---- !!! ทำถึงตรงนี้
+onet_p6 <- p6 |>
+  select(year, province, amphor, school_code, school_name, subject, mean_score) |> 
+  group_by(year) |> 
+  pivot_wider(names_from = "subject", values_from = "mean_score") |> 
+  rename(sci = 6,
+         thai = 7,
+         eng = 8,
+         math = 9) %>% 
+  drop_na() |> 
+  nest() |> 
+  mutate(ach_score = map(data, my_pca)) |> 
+  unnest(cols = c(data, ach_score)) |> 
+  group_by(year, province, amphor) |> 
+  summarise(across(c("thai","eng","math","sci","ach_score"),
+            list(
+                avg = ~mean(.x, na.rm = T), 
+                median = ~median(.x, na.rm = T)),
+            .names = "{fn}_{col}")) |>
+  ungroup() |> 
+  mutate(student_level = "ประถมศึกษาปีที่ 6",
+          .before = "year")
+
+onet_m3 <- m3 |>
+  select(year, province, amphor, school_code, school_name, subject, mean_score) |> 
+  group_by(year) |> 
+  pivot_wider(names_from = "subject", values_from = "mean_score") |> 
+  rename(sci = 6,
+         thai = 7,
+         eng = 8,
+         math = 9) %>% 
+  drop_na() |> 
+  nest() |> 
+  mutate(ach_score = map(data, my_pca)) |> 
+  unnest(cols = c(data, ach_score)) |> 
+  group_by(year, province, amphor) |> 
+  summarise(across(c("thai","eng","math","sci","ach_score"),
+            list(
+                avg = ~mean(.x, na.rm = T), 
+                median = ~median(.x, na.rm = T)),
+            .names = "{fn}_{col}")) |>
+  ungroup() |> 
+  mutate(student_level = "มัธยมศึกษาปีที่ 3",
+          .before = "year")
+
+onet_m6 <- m6 |>
+  select(year, province, amphor, school_code, school_name, subject, mean_score) |> 
+  group_by(year) |> 
+  pivot_wider(names_from = "subject", values_from = "mean_score") |> 
+  rename(sci = 6,
+         thai = 7,
+         eng = 8,
+         math = 9) %>% 
+  drop_na() |> 
+  nest() |> 
+  mutate(ach_score = map(data, my_pca)) |> 
+  unnest(cols = c(data, ach_score)) |> 
+  group_by(year, province, amphor) |> 
+  summarise(across(c("thai","eng","math","sci","ach_score"),
+            list(
+                avg = ~mean(.x, na.rm = T), 
+                median = ~median(.x, na.rm = T)),
+            .names = "{fn}_{col}")) |>
+  ungroup() |> 
+  mutate(student_level = "มัธยมศึกษาปีที่ 6",
+          .before = "year") 
+
+onet_score <- bind_rows(onet_p6,
+                        onet_m3,
+                        onet_m6)
+
+onet_m6$median_ach_score |> sd()
+```
+
+
+## 3. Adaptive Capacity
+
+### 3.1 ฐานะยากจน
+
+#### ปีการศึกษา 2566
+
+```{r}
+poor_66 <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./ความด้อยโอกาสของนักเรียน/ด้อยโอกาส2566.csv")
+
+student_total66 <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./จำนวนนักเรียนและห้องเรียนทั้งหมด/จำนวนนักเรียน_ห้องเรียน2566.csv")
+  
+student_total66 <- student_total66 |> 
+  select(-1) |> 
+  rename(area_name = 1,
+        gender = 2,
+        primary = 3,
+        second1 = 4,
+        second2 = 5) |> 
+  fill(area_name, .direction = "down") |> 
+  filter(gender == "รวม") |> 
+  mutate(area_name = str_trim(area_name)) |> 
+  select(area_name, Total) |> 
+  #mutate(area_name = str_remove(area_name, "\\s+(?=เขต)")) |> 
+  mutate(year = 2566, .before = "area_name") 
+
+
+poor_66 |> 
+  rename(area_name1 = 1,
+         area_name2 = last_col(),
+         poor_type = 2,
+         total_male =3,
+         total_female=4,
+         total = 5) |> 
+  filter(area_name2 != "สำนักบริหารงานการศึกษาพิเศษ") |> 
+  filter(poor_type %in% c("เด็กยากจน", "เด็กถูกบังคับให้ขายแรงงาน",
+                          "เด็กที่อยู่ในธุรกิจทางเพศ",
+                          "ทำงานรับผิดชอบตนเองและครอบครัว")) |> 
+ # filter(str_detect(area_name2, "สพม.กรุงเทพมหานคร เขต 1"))
+  group_by(area_name2) |> 
+  summarise(num_poor = sum(total)) |> 
+  ungroup() |> 
+  rename(area_name = 1) |> 
+  mutate(area_name = str_trim(area_name)) -> temp
+
+temp |> filter(str_detect(area_name, "กระบี่"))
+
+student_poor66<- student_total66 |> 
+  left_join(temp , by = "area_name") |> 
+  mutate(percent_poor = num_poor*100/Total)
+
+```
+
+
+#### ปีการศึกษา 2565
+
+```{r}
+poor_65 <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./ความด้อยโอกาสของนักเรียน/ด้อยโอกาส2565.csv")
+
+student_total65 <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./จำนวนนักเรียนและห้องเรียนทั้งหมด/จำนวนนักเรียน_ห้องเรียน2565.csv")
+  
+student_total65 <- student_total65 |> 
+  select(-1) |> 
+  rename(area_name = 1,
+        gender = 2,
+        primary = 3,
+        second1 = 4,
+        second2 = 5,
+        Total = `รวมทั้งสิ้น`) |> 
+  fill(area_name, .direction = "down") |> 
+  filter(gender == "รวม") |> 
+  mutate(area_name = str_trim(area_name)) |> 
+  select(area_name, Total) |> 
+  #mutate(area_name = str_remove(area_name, "\\s+(?=เขต)")) |> 
+  mutate(year = 2565, .before = "area_name") 
+
+
+poor_65 |> 
+  rename(area_name1 = 1,
+         area_name2 = last_col(),
+         poor_type = 2,
+         total_male =3,
+         total_female=4,
+         total = 5) |> 
+  filter(area_name2 != "สำนักบริหารงานการศึกษาพิเศษ") |> 
+  filter(poor_type %in% c("เด็กยากจน", "เด็กถูกบังคับให้ขายแรงงาน",
+                          "เด็กที่อยู่ในธุรกิจทางเพศ",
+                          "ทำงานรับผิดชอบตนเองและครอบครัว")) |> 
+ # filter(str_detect(area_name2, "สพม.กรุงเทพมหานคร เขต 1"))
+  group_by(area_name2) |> 
+  summarise(num_poor = sum(total)) |> 
+  ungroup() |> 
+  rename(area_name = 1) |> 
+  mutate(area_name = str_trim(area_name)) -> temp
+
+
+student_poor65<- student_total65 |> 
+  left_join(temp , by = "area_name") |> 
+  mutate(percent_poor = num_poor*100/Total)
+```
+
+
+#### ปีการศึกษา 2564
+
+```{r}
+poor_64 <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./ความด้อยโอกาสของนักเรียน/ด้อยโอกาส2564.csv",
+                    na =c("","-","NA"))
+
+student_total64 <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./จำนวนนักเรียนและห้องเรียนทั้งหมด/จำนวนนักเรียน_ห้องเรียน2564.csv")
+  
+student_total64 <- student_total64 |> 
+  select(-1) |> 
+  rename(area_name = 1,
+        gender = 2,
+        primary = 3,
+        second1 = 4,
+        second2 = 5,
+        Total = total) |> 
+  fill(area_name, .direction = "down") |> 
+  filter(gender == "รวม") |> 
+  mutate(area_name = str_trim(area_name)) |> 
+  select(area_name, Total) |> 
+  #mutate(area_name = str_remove(area_name, "\\s+(?=เขต)")) |> 
+  mutate(year = 2564, .before = "area_name") 
+
+
+poor_64 |> 
+  rename(area_name = 2,
+          gender = 3) |> 
+  select(-1) |> 
+  fill(area_name, .direction = "down") |> 
+  pivot_longer(cols = 3:16) |> 
+  mutate(name = str_replace_all(name, "\n","")) |> 
+  filter(area_name != "สำนักบริหารงานการศึกษาพิเศษ") |> 
+  filter(gender == "รวม") |> 
+  select(-gender) |> 
+  filter(name %in% c("เด็กยากจน", "เด็กถูกบังคับให้ขายแรงงาน",
+                          "เด็กที่อยู่ในธุรกิจทางเพศ",
+                          "ทำงานรับผิดชอบตนเองและครอบครัว")) |> 
+  group_by(area_name) |> 
+  summarise(num_poor = sum(value, na.rm = T)) |> 
+  mutate(area_name = str_replace_all(area_name, "(?<!\\bเขต)\\s(?!\\bเขต)", "-"))->temp
+
+student_poor64<- student_total64 |> 
+  left_join(temp , by = "area_name") |> 
+  mutate(percent_poor = num_poor*100/Total)
+```
+
+
+#### รวมข้อมูลความยากจนของนักเรียนทั้ง 3 ปีเข้าด้วยกัน
+
+```{r}
+student_poor_data <- 
+  bind_rows(student_poor66, student_poor65, student_poor64)
+
+student_poor_data |> summary()
+
+
+student_poor_data <- student_poor_data |> 
+  mutate(province = area_name, .after = "year") |> 
+  mutate(province = str_remove(province, "สพป\\.")) |>
+  mutate(province = str_remove(province, "สพม\\.")) |> 
+  mutate(province = str_remove(province, "เขต\\s*\\d+")) |> 
+  mutate(province = str_trim(province)) 
+
+### ประถมศึกษา
+student_poor_data %>% 
+  filter(str_detect(area_name,"สพป\\.")) %>% 
+  group_by(province) %>% 
+  summarise(avg_percent_poor = mean(percent_poor, na.rm = T)) %>% 
+  mutate_at(2, round,2) %>% 
+  write_xlsx(path="poor_primary.xlsx")
+### มัธยมศึกษา
+student_poor_data %>% 
+  filter(str_detect(area_name,"สพม\\.")) %>% 
+  group_by(province) %>% 
+  summarise(avg_percent_poor = mean(percent_poor, na.rm = T)) %>% 
+  mutate_at(2, round,2) %>% 
+  write_xlsx(path="poor_secondary.xlsx")
+```
+
+
+### 3.2 นักเรียนที่มีปัญหาทางบ้าน
+
+#### ปีการศึกษา 2566
+
+```{r}
+family_66 <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./ความด้อยโอกาสของนักเรียน/ด้อยโอกาส2566.csv")
+
+student_total66 <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./จำนวนนักเรียนและห้องเรียนทั้งหมด/จำนวนนักเรียน_ห้องเรียน2566.csv")
+  
+student_total66 <- student_total66 |> 
+  select(-1) |> 
+  rename(area_name = 1,
+        gender = 2,
+        primary = 3,
+        second1 = 4,
+        second2 = 5) |> 
+  fill(area_name, .direction = "down") |> 
+  filter(gender == "รวม") |> 
+  mutate(area_name = str_trim(area_name)) |> 
+  select(area_name, Total) |> 
+  #mutate(area_name = str_remove(area_name, "\\s+(?=เขต)")) |> 
+  mutate(year = 2566, .before = "area_name") 
+
+
+family_66 |> 
+  rename(area_name1 = 1,
+         area_name2 = last_col(),
+         poor_type = 2,
+         total_male =3,
+         total_female=4,
+         total = 5) |> 
+  filter(area_name2 != "สำนักบริหารงานการศึกษาพิเศษ") |>
+  filter(poor_type %in% c("เด็กถูกทอดทิ้ง","เด็กเร่ร่อน","เด็กในสถานพินิจและคุ้มครองเยาวชน","กำพร้่า","เด็กที่มีปัญหาเกี่ยวกับยาเสพติด")) |> 
+ # filter(str_detect(area_name2, "สพม.กรุงเทพมหานคร เขต 1"))
+  group_by(area_name2) |> 
+  summarise(num_poor = sum(total)) |> 
+  ungroup() |> 
+  rename(area_name = 1) |> 
+  mutate(area_name = str_trim(area_name)) -> temp
+
+temp |> filter(str_detect(area_name, "กระบี่"))
+
+student_family66<- student_total66 |> 
+  left_join(temp , by = "area_name") |> 
+  mutate(percent_poor = num_poor*100/Total)
+```
+
+
+#### ปีการศึกษา 2565
+
+```{r}
+family_65 <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./ความด้อยโอกาสของนักเรียน/ด้อยโอกาส2565.csv")
+
+student_total65 <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./จำนวนนักเรียนและห้องเรียนทั้งหมด/จำนวนนักเรียน_ห้องเรียน2565.csv")
+  
+student_total65 <- student_total65 |> 
+  select(-1) |> 
+  rename(area_name = 1,
+        gender = 2,
+        primary = 3,
+        second1 = 4,
+        second2 = 5,
+        Total = 6) |> 
+  fill(area_name, .direction = "down") |> 
+  filter(gender == "รวม") |> 
+  mutate(area_name = str_trim(area_name)) |> 
+  select(area_name, Total) |> 
+  #mutate(area_name = str_remove(area_name, "\\s+(?=เขต)")) |> 
+  mutate(year = 2565, .before = "area_name") 
+
+
+family_65 |> 
+  rename(area_name1 = 1,
+         area_name2 = last_col(),
+         poor_type = 2,
+         total_male =3,
+         total_female=4,
+         total = 5) |> 
+  filter(area_name2 != "สำนักบริหารงานการศึกษาพิเศษ") |>
+  filter(poor_type %in% c("เด็กถูกทอดทิ้ง","เด็กเร่ร่อน","เด็กในสถานพินิจและคุ้มครองเยาวชน","กำพร้่า","เด็กที่มีปัญหาเกี่ยวกับยาเสพติด")) |> 
+ # filter(str_detect(area_name2, "สพม.กรุงเทพมหานคร เขต 1"))
+  group_by(area_name2) |> 
+  summarise(num_poor = sum(total)) |> 
+  ungroup() |> 
+  rename(area_name = 1) |> 
+  mutate(area_name = str_trim(area_name)) -> temp
+
+temp |> filter(str_detect(area_name, "กระบี่"))
+
+student_family65<- student_total65 |> 
+  left_join(temp , by = "area_name") |> 
+  mutate(percent_poor = num_poor*100/Total)
+```
+
+
+#### ปีการศึกษา 2564
+
+```{r}
+family_64 <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./ความด้อยโอกาสของนักเรียน/ด้อยโอกาส2564.csv",
+                    na =c("","-","NA"))
+
+student_total64 <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./จำนวนนักเรียนและห้องเรียนทั้งหมด/จำนวนนักเรียน_ห้องเรียน2564.csv")
+  
+student_total64 <- student_total64 |> 
+  select(-1) |> 
+  rename(area_name = 1,
+        gender = 2,
+        primary = 3,
+        second1 = 4,
+        second2 = 5,
+        Total = total) |> 
+  fill(area_name, .direction = "down") |> 
+  filter(gender == "รวม") |> 
+  mutate(area_name = str_trim(area_name)) |> 
+  select(area_name, Total) |> 
+  #mutate(area_name = str_remove(area_name, "\\s+(?=เขต)")) |> 
+  mutate(year = 2564, .before = "area_name") 
+
+
+family_64 |> 
+  rename(area_name = 2,
+          gender = 3) |> 
+  select(-1) |> 
+  fill(area_name, .direction = "down") |> 
+  pivot_longer(cols = 3:16) |> 
+  mutate(name = str_replace_all(name, "\n","")) |> 
+  filter(area_name != "สำนักบริหารงานการศึกษาพิเศษ") |> 
+  filter(gender == "รวม") |> 
+  select(-gender) |> 
+   filter(name %in% c("เด็กถูกทอดทิ้ง","เด็กเร่ร่อน","เด็กในสถานพินิจและคุ้มครองเยาวชน","กำพร้่า","เด็กที่มีปัญหาเกี่ยวกับยาเสพติด")) |> 
+  group_by(area_name) |> 
+  summarise(num_poor = sum(value, na.rm = T)) |> 
+  mutate(area_name = str_replace_all(area_name, "(?<!\\bเขต)\\s(?!\\bเขต)", "-"))->temp
+
+student_family64<- student_total64 |> 
+  left_join(temp , by = "area_name") |> 
+  mutate(percent_poor = num_poor*100/Total)
+```
+
+
+### 3.3 จำนวนนักเรียนพิการ
+
+จำนวนนักเรียนพิการใช้ข้อมูลจาก 4 ส่วนได้แก่
+
+- นักเรียนพิการเรียนร่วมในโรงเรียนสังกัด สพฐ.
+
+- นักเรียนพิการในศูนย์การศึกษาพิเศษ
+
+- นักเรียนพิการในโรงเรียนศึกษาสงเคราะห์
+
+- นักเรียนพิการในโรงเรียนเฉพาะความพิการ
+
+รายละเอียดมีดังนี้
+
+
+```{r}
+disability_obec66 <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./เด็กพิการ/เด็กพิการ2566.csv")
+
+#disability_spec66 <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./เด็กพิการ/ศูนย์การศึกษาพิเศษ66.csv")
+
+#disability_dissch66 <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./เด็กพิการ/โรงเรียนเฉพาะความพิการ66.csv")
+
+#disability_supsch66 <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./เด็กพิการ/โรงเรียนการศึกษาสงเคราะห์66.csv") 
+
+student_total66 <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./จำนวนนักเรียนและห้องเรียนทั้งหมด/จำนวนนักเรียน_ห้องเรียน2566.csv")
+
+disability_obec66 |> 
+  rename(area_name  = 1, disability_type = 2,
+        disability_obec = 7) |> 
+  select(1,2,4,5,6) |> 
+  filter(disability_type == "นักเรียนพิการทั้งหมด") |> 
+  filter(area_name != "สำนักบริหารงานการศึกษาพิเศษ") |> 
+  rename(primary = 3,
+         second1 = 4,
+         second2 = 5) |> 
+  mutate(second = second1+second2) |> 
+  select(-4,-5) |> 
+  pivot_longer(cols=3:4, names_to = "student_level", values_to = "num_disability") |> 
+  mutate(student_level = ifelse(student_level == "primary", "ประถมศึกษา", "มัธยมศึกษา")) |> 
+  filter(num_disability >0) |> 
+  mutate(province = area_name, .after = "area_name") |> 
+  mutate(province = str_remove(province, "สพป\\.")) |>
+  mutate(province = str_remove(province, "สพม\\.")) |> 
+  mutate(province = str_remove(province, "เขต\\s*\\d+")) |> 
+  mutate(province = str_trim(province)) -> temp
+
+
+disability_dissch66 |> data.frame()
+
+
+#### -- จำนวนนักเรียนพิการเรียนร่วมใน สพฐ.
+student_obectotal66 <- student_total66 |> 
+  select(-1) |> 
+  rename(area_name = 1,
+        gender = 2,
+        primary = 3,
+        second1 = 4,
+        second2 = 5) |> 
+  fill(area_name, .direction = "down") |> 
+  filter(gender == "รวม") |> 
+  mutate(area_name = str_trim(area_name)) |> 
+  mutate(second = second1+second2) |> 
+  select(-gender, -second1, -second2, -Total) |> 
+  pivot_longer(cols=2:3, names_to = "student_level", values_to = "Total") |> 
+  mutate(student_level = ifelse(student_level == "primary", "ประถมศึกษา", "มัธยมศึกษา")) |> 
+  #mutate(area_name = str_remove(area_name, "\\s+(?=เขต)")) |> 
+  mutate(year = 2566, .before = "area_name") 
+
+student_obectotal66 |> 
+  left_join(disability_obec66, by = "area_name")
+
+
+
+
+```
+
+
+student_obectotal66 <- student_total66 |> 
+  select(-1) |> 
+  rename(area_name = 1,
+        gender = 2,
+        primary = 3,
+        second1 = 4,
+        second2 = 5) |> 
+  fill(area_name, .direction = "down") |> 
+  filter(gender == "รวม") |> 
+  mutate(area_name = str_trim(area_name)) |> 
+  mutate(second = second1+second2) |> 
+  select(-gender, -second1, -second2, -Total) |> 
+  pivot_longer(cols=2:3, names_to = "student_level", values_to = "Total") |> 
+  mutate(student_level = ifelse(student_level == "primary", "ประถมศึกษา", "มัธยมศึกษา")) |> 
+  #mutate(area_name = str_remove(area_name, "\\s+(?=เขต)")) |> 
+  mutate(year = 2566, .before = "area_name") 
+
+student_disability66 <- student_total66 |> 
+  left_join(temp , by = "area_name") |> 
+  mutate(percent_disability = num_disability_student*100/Total)
+```
+
+
+
+```{r}
+library(pdftools)
+pdftools::pdf_text(pdf = "/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./เด็กพิการ/โรงเรียนเฉพาะความพิการ2567_1_table1.pdf") -> test
+```
+
+
+## 4. ทรัพยากรในโรงเรียน
+
+- อัตราส่วนนักเรียนต่อครู
+
+- อัตราส่วนครูต่อห้องเรียน
+
+
+```{r}
+teacher1 <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./จำนวนครู นักเรียน ห้องเรียน และพิกัดโรงเรียน/merge1.csv")
+
+teacher2 <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ./จำนวนครู นักเรียน ห้องเรียน และพิกัดโรงเรียน/merge2.csv")
+
+
+teacher_data <- teacher1 |> bind_rows(teacher2) |> 
+  filter(teacher >0 & room > 0) |> 
+  mutate(student_per_teacher = student/teacher,
+         teacher_per_room = teacher/room) |> 
+  group_by(province, amphor) |> 
+  summarise(avg_student_per_teacher = mean(student_per_teacher),
+            sd_student_per_teacher = sd(student_per_teacher),
+           avg_teacher_per_room = mean(teacher_per_room),
+           sd_teacher_per_room = sd(teacher_per_room))
+```

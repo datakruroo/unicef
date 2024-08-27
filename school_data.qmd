@@ -1,0 +1,130 @@
+---
+title: "school data preprocessing"
+format: html
+---
+
+```{r}
+library(tidyverse)
+library(readxl)
+```
+
+ส่วนนี้จัดการ non-climate data
+
+# 1. ข้อมูลโรงเรียน
+
+ฐานข้อมูลโรงเรียนใช้หลายฐาน 
+
+### 1.1 ระยะทางและความเป็นโรงเรียนทุรกันดาร
+
+มีจำนวน 2 ตัวชี้วัด ได้แก่
+
+- ระยะทางระหว่างโรงเรียนกับอำเภอเมือง
+
+- ความเป็นโรงเรียนพื้นที่ห่างไกล ทุรกันดาร
+
+
+```{r importing data}
+
+### ข้อมูลพื้นฐานโรงเรียน 
+sch_bg <- read_excel("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ_/ข้อมูลดิบพื้นฐานโรงเรียน สพฐ..xlsx")
+
+### ระยะทางระหว่างโรงเรียนกับอำเภอเมือง
+sch_dist <- read_csv("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ_/Schooldistance.csv")
+```
+
+
+จัดการดึงพิกัดโรงเรียนจาก google map
+
+```{r}
+### ข้อมูลพื้นฐานโรงเรียน สพฐ.
+sch_data_bg <- sch_bg %>% 
+  select(areacode, 
+         `กระทรวง`,
+         `ชื่อโรงเรียน`,
+         `ชื่ออำเภอ`,
+         `ชื่อจังหวัด`,
+         `ชื่อเขต`,
+         `หมู่`, `ชื่อหมู่บ้าน`, `ชื่อตำบล`, `ไปรษณีย์`,
+         lat, long)  %>% 
+  rename(area_code = 1,
+         school_code = 2,
+         school_name = 3,
+         amphor = 4,
+         province = 5,
+         affiliation = 6,
+         moo = 7,
+         moobann = 8,
+         tambon = 9,
+         postcode = 10) %>% 
+  mutate(school_code = as.numeric(school_code)) |> 
+  filter(affiliation != "สำนักบริหารงานการศึกษาพิเศษ")
+
+sch_data_bg |> glimpse()
+sch_data_bg |> 
+    mutate(location = paste("โรงเรียน",school_name,
+                            moobann,
+                            tambon, amphor, province, postcode)) |> 
+    pull(location) -> location
+
+library(ggmap)
+register_google(key = "AIzaSyDM-LA_BHSt6Eh_SXXmELNqFhkAafd8JgU")
+
+### แบ่งดึงพิกัดทีละ 10000 โรงเรียน
+school_background_data1 <- sch_data_bg |> 
+    slice(1:10000) |> 
+    mutate(location = paste("โรงเรียน",school_name,
+                            moobann,
+                            tambon, amphor, province, postcode)) |>
+    mutate(location_lat_lon = geocode(location))
+
+school_background_data2 <- sch_data_bg |> 
+    slice(10001:20000) |> 
+    mutate(location = paste("โรงเรียน",school_name,
+                            moobann,
+                            tambon, amphor, province, postcode)) |>
+    mutate(location_lat_lon = geocode(location))
+
+
+school_background_data3 <- sch_data_bg |> 
+    slice(20001:30013) |> 
+    mutate(location = paste("โรงเรียน",school_name,
+                            moobann,
+                            tambon, amphor, province, postcode)) |>
+    mutate(location_lat_lon = geocode(location))
+
+```
+
+
+
+```{r}
+### save image
+save.image(file='schoo_data.RData')
+```
+
+
+
+
+
+
+## 1.7 ข้อมูลโรงเรียน (non-climate data)
+
+ที่ตั้งและอาณาเขต\
+พิกัดภูมิศาสตร์ ประเทศไทยตั้งอยู่ในช่วงพิกัดละติจูด 5°37′N - 20°27′N และลองจิจูด 97°22′E - 105°37′E
+
+```         
+ทิศเหนือสุด         ละติจูด 20 องศา 37 ลิปดา 30 พิลิปดา เหนือ ที่อำเภอแม่สาย จังหวัดเชียงราย
+```
+
+ทิศใต้สุด ละติจูด 5 องศา 37 ลิปดา ที่อำเภอเบตง จังหวัดยะลา ทิศตะวันออกสุด ลองจิจูด 105 องศา 37 ลิปดา 30 พิลิปดา ที่อำเภอพิบูลมังสาหาร จังหวัดอุบลราชธานี ทิศตะวันตกสุด ลองจิจูด 97 องศา 22 ลิปดา ตะวันออก ที่อำเภอแม่ลาน้อย จังหวัดแม่ฮ่องสอน
+
+```{r}
+library(readxl)
+excel_sheets("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ_/ข้อมูลดิบพื้นฐานโรงเรียน สพฐ..xlsx")
+school_data <- read_excel("/Users/choat/Library/CloudStorage/OneDrive-ChulalongkornUniversity/Documents/งานวิจัย/unicef/data/ข้อมูลพื้นฐานโรงเรียน สพฐ_/ข้อมูลดิบพื้นฐานโรงเรียน สพฐ..xlsx")
+
+school_data  |> select(`โรงเรียน`,`กระทรวง`,areacode,smis,`ชื่อจังหวัด`,`ชื่ออำเภอ`,`ชื่อเขต`,lat,long) |> 
+filter(lat >5.37 & lat <20.27 & long>97.22 & long <105.37) |> 
+ggplot(aes(x=long, y=lat))+
+geom_point()
+```
+
